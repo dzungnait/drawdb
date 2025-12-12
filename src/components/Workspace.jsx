@@ -25,7 +25,7 @@ import { useTranslation } from "react-i18next";
 import { databases } from "../data/databases";
 import { isRtl } from "../i18n/utils/rtl";
 import { useSearchParams } from "react-router-dom";
-import { get, SHARE_FILENAME } from "../api/gists";
+import { get, patch, SHARE_FILENAME } from "../api/gists";
 import { nanoid } from "nanoid";
 
 export const IdContext = createContext({
@@ -80,53 +80,63 @@ export default function WorkSpace() {
     const op = name[0];
     const saveAsDiagram = window.name === "" || op === "d" || op === "lt";
 
+    const diagramData = {
+      database: database,
+      name: title,
+      lastModified: new Date(),
+      tables: tables,
+      references: relationships,
+      notes: notes,
+      areas: areas,
+      todos: tasks,
+      gistId: gistId ?? "",
+      pan: transform.pan,
+      zoom: transform.zoom,
+      loadedFromGistId: loadedFromGistId,
+      ...(databases[database].hasEnums && { enums: enums }),
+      ...(databases[database].hasTypes && { types: types }),
+    };
+
     if (saveAsDiagram) {
       if (searchParams.has("shareId")) {
         searchParams.delete("shareId");
         setSearchParams(searchParams, { replace: true });
       }
+
+      // Sync to server if diagram is shared
+      if (gistId && gistId !== "") {
+        try {
+          const shareData = {
+            title,
+            tables: tables,
+            relationships: relationships,
+            notes: notes,
+            subjectAreas: areas,
+            database: database,
+            ...(databases[database].hasTypes && { types: types }),
+            ...(databases[database].hasEnums && { enums: enums }),
+            transform: transform,
+          };
+          await patch(gistId, SHARE_FILENAME, JSON.stringify(shareData));
+        } catch (e) {
+          console.error("Failed to sync to server:", e);
+          setSaveState(State.ERROR);
+          return;
+        }
+      }
+
       if ((id === 0 && window.name === "") || op === "lt") {
         await db.diagrams
-          .add({
-            database: database,
-            name: title,
-            gistId: gistId ?? "",
-            lastModified: new Date(),
-            tables: tables,
-            references: relationships,
-            notes: notes,
-            areas: areas,
-            todos: tasks,
-            pan: transform.pan,
-            zoom: transform.zoom,
-            loadedFromGistId: loadedFromGistId,
-            ...(databases[database].hasEnums && { enums: enums }),
-            ...(databases[database].hasTypes && { types: types }),
-          })
-          .then((id) => {
-            setId(id);
-            window.name = `d ${id}`;
+          .add(diagramData)
+          .then((newId) => {
+            setId(newId);
+            window.name = `d ${newId}`;
             setSaveState(State.SAVED);
             setLastSaved(new Date().toLocaleString());
           });
       } else {
         await db.diagrams
-          .update(id, {
-            database: database,
-            name: title,
-            lastModified: new Date(),
-            tables: tables,
-            references: relationships,
-            notes: notes,
-            areas: areas,
-            todos: tasks,
-            gistId: gistId ?? "",
-            pan: transform.pan,
-            zoom: transform.zoom,
-            loadedFromGistId: loadedFromGistId,
-            ...(databases[database].hasEnums && { enums: enums }),
-            ...(databases[database].hasTypes && { types: types }),
-          })
+          .update(id, diagramData)
           .then(() => {
             setSaveState(State.SAVED);
             setLastSaved(new Date().toLocaleString());
