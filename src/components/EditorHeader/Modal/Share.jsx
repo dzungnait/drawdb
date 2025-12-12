@@ -10,14 +10,17 @@ import {
   useNotes,
   useTransform,
   useTypes,
+  useSaveState,
 } from "../../../hooks";
 import { databases } from "../../../data/databases";
 import { MODAL } from "../../../data/constants";
-import { create, patch, SHARE_FILENAME } from "../../../api/gists";
+import { create, patch, del, SHARE_FILENAME } from "../../../api/gists";
+import { lock, unlock } from "../../../api/lock";
 
 export default function Share({ title, setModal }) {
   const { t } = useTranslation();
   const { gistId, setGistId } = useContext(IdContext);
+  const { sessionId } = useSaveState();
   const [loading, setLoading] = useState(true);
   const { tables, relationships, database } = useDiagram();
   const { notes } = useNotes();
@@ -55,26 +58,49 @@ export default function Share({ title, setModal }) {
 
   const unshare = useCallback(async () => {
     try {
-      const deleted = await patch(gistId, SHARE_FILENAME, undefined);
-      if (deleted) {
-        setGistId("");
+      if (sessionId) {
+        await lock(gistId, sessionId);
       }
-      setModal(MODAL.NONE);
+      
+      try {
+        await del(gistId);
+        setGistId("");
+        setModal(MODAL.NONE);
+      } finally {
+        if (sessionId) {
+          await unlock(gistId, sessionId);
+        }
+      }
     } catch (e) {
       console.error(e);
       setError(e);
     }
-  }, [gistId, setModal, setGistId]);
+  }, [gistId, setModal, setGistId, sessionId]);
 
   useEffect(() => {
     const updateOrGenerateLink = async () => {
       try {
         setLoading(true);
-        if (!gistId || gistId === "") {
+        const newGistId = gistId || "";
+
+        if (!newGistId || newGistId === "") {
+          // Create new share
           const id = await create(SHARE_FILENAME, diagramToString());
           setGistId(id);
         } else {
-          await patch(gistId, SHARE_FILENAME, diagramToString());
+          // Update existing share with lock
+          if (sessionId) {
+            await lock(newGistId, sessionId);
+          }
+
+          try {
+            await patch(newGistId, SHARE_FILENAME, diagramToString());
+          } finally {
+            // Release lock
+            if (sessionId) {
+              await unlock(newGistId, sessionId);
+            }
+          }
         }
       } catch (e) {
         setError(e);

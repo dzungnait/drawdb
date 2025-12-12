@@ -130,7 +130,7 @@ export default function ControlPanel({
   const { selectedElement, setSelectedElement } = useSelect();
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
-  const { version, gistId, setGistId } = useContext(IdContext);
+  const { version, gistId, setGistId, syncToServer } = useContext(IdContext);
   const navigate = useNavigate();
 
   const invertLayout = (component) =>
@@ -747,7 +747,10 @@ export default function ControlPanel({
   const toggleDBMLEditor = () => {
     setLayout((prev) => ({ ...prev, dbmlEditor: !prev.dbmlEditor }));
   };
-  const save = () => setSaveState(State.SAVING);
+  const save = () => {
+    setSaveState(State.SAVING);
+    syncToServer();
+  };
   const recentlyOpenedDiagrams = useLiveQuery(() =>
     db.diagrams.orderBy("lastModified").reverse().limit(10).toArray(),
   );
