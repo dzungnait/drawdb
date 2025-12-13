@@ -26,8 +26,7 @@ import { useTranslation } from "react-i18next";
 import { databases } from "../data/databases";
 import { isRtl } from "../i18n/utils/rtl";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { get, patch, SHARE_FILENAME, create, createSnapshot } from "../api/gists";
-import { lock, unlock, heartbeat } from "../api/lock";
+import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion } from "../api/gists";
 import { nanoid } from "nanoid";
 
 const SIDEPANEL_MIN_WIDTH = 384;
@@ -200,7 +199,7 @@ export default function WorkSpace() {
       // Ensure design exists on server
       const designId = await ensureDesignOnServer();
       
-      // Skip lock/unlock for local designs
+      // Handle local designs without version control
       if (designId.startsWith('local_')) {
         const shareData = {
           title,
@@ -219,37 +218,43 @@ export default function WorkSpace() {
         return;
       }
       
-      // Step 1: Acquire lock (only for server designs)
-      await lock(designId, sessionId).catch((error) => {
-        if (error.message.includes("locked") || error.message.includes("409")) {
-          Toast.error("Design is being edited by someone else. Please try again later.");
-          throw error;
-        }
-        throw error;
-      });
-
+      // Get current version for server designs
+      const { version: currentVersion } = await getCurrentVersion(designId);
+      
+      const shareData = {
+        title,
+        tables: tables,
+        relationships: relationships,
+        notes: notes,
+        subjectAreas: areas,
+        database: database,
+        ...(databases[database].hasTypes && { types: types }),
+        ...(databases[database].hasEnums && { enums: enums }),
+        transform: transform,
+      };
+      
       try {
-        // Step 2: Save data
-        const shareData = {
-          title,
-          tables: tables,
-          relationships: relationships,
-          notes: notes,
-          subjectAreas: areas,
-          database: database,
-          ...(databases[database].hasTypes && { types: types }),
-          ...(databases[database].hasEnums && { enums: enums }),
-          transform: transform,
-        };
-        await patch(designId, SHARE_FILENAME, JSON.stringify(shareData));
+        // Save with version control
+        await patch(
+          designId, 
+          SHARE_FILENAME, 
+          JSON.stringify(shareData),
+          currentVersion,
+          sessionId // Use sessionId as lastModifiedBy
+        );
         setSaveState(State.SAVED);
         setLastSaved(new Date().toLocaleString());
-      } finally {
-        // Step 3: Release lock (always, even if save fails)
-        try {
-          await unlock(gistId, sessionId);
-        } catch (unlockError) {
-          console.warn("Failed to release lock:", unlockError);
+      } catch (error) {
+        if (error.conflict) {
+          // Handle version conflict
+          Toast.error(
+            "Conflict detected: Another user has modified this design. Please refresh and try again.",
+            { duration: 5000 }
+          );
+          // TODO: Show conflict resolution UI
+          console.log("Conflict data:", error.data);
+        } else {
+          throw error;
         }
       }
     } catch (e) {

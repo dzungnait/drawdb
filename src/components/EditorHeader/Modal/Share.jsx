@@ -15,7 +15,6 @@ import {
 import { databases } from "../../../data/databases";
 import { MODAL } from "../../../data/constants";
 import { create, patch, del, SHARE_FILENAME } from "../../../api/gists";
-import { lock, unlock } from "../../../api/lock";
 
 export default function Share({ title, setModal }) {
   const { t } = useTranslation();
@@ -58,24 +57,14 @@ export default function Share({ title, setModal }) {
 
   const unshare = useCallback(async () => {
     try {
-      if (sessionId) {
-        await lock(gistId, sessionId);
-      }
-      
-      try {
-        await del(gistId);
-        setGistId("");
-        setModal(MODAL.NONE);
-      } finally {
-        if (sessionId) {
-          await unlock(gistId, sessionId);
-        }
-      }
+      await del(gistId);
+      setGistId("");
+      setModal(MODAL.NONE);
     } catch (e) {
       console.error(e);
       setError(e);
     }
-  }, [gistId, setModal, setGistId, sessionId]);
+  }, [gistId, setModal, setGistId]);
 
   useEffect(() => {
     const updateOrGenerateLink = async () => {
@@ -88,19 +77,8 @@ export default function Share({ title, setModal }) {
           const id = await create(SHARE_FILENAME, diagramToString());
           setGistId(id);
         } else {
-          // Update existing share with lock
-          if (sessionId) {
-            await lock(newGistId, sessionId);
-          }
-
-          try {
-            await patch(newGistId, SHARE_FILENAME, diagramToString());
-          } finally {
-            // Release lock
-            if (sessionId) {
-              await unlock(newGistId, sessionId);
-            }
-          }
+          // Update existing share
+          await patch(newGistId, SHARE_FILENAME, diagramToString());
         }
       } catch (e) {
         setError(e);

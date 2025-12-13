@@ -42,7 +42,7 @@ function generateLocalId() {
   return 'local_' + Math.random().toString(36).substr(2, 9) + Date.now();
 }
 
-export async function patch(gistId, filename, content) {
+export async function patch(gistId, filename, content, version = undefined, lastModifiedBy = undefined) {
   // Handle local storage first
   if (gistId && gistId.startsWith('local_')) {
     console.log("Updating local design:", gistId);
@@ -55,24 +55,66 @@ export async function patch(gistId, filename, content) {
       existingData[index].updated_at = new Date().toISOString();
       localStorage.setItem('local_designs', JSON.stringify(existingData));
       console.log("Local design updated successfully");
-      return false; // Not deleted
+      return { deleted: false, version: 1 }; // Local designs don't have version conflicts
     } else {
       console.warn("Local design not found:", gistId);
-      return false;
+      return { deleted: false, version: 1 };
     }
   }
 
-  // Try server update
+  // Try server update with version control
   try {
-    const { data } = await axios.patch(`${baseUrl}/designs/${gistId}`, {
+    const payload = {
       filename,
       content,
-    });
+    };
+    
+    // Add version control parameters if provided
+    if (version !== undefined) {
+      payload.version = version;
+    }
+    if (lastModifiedBy !== undefined) {
+      payload.lastModifiedBy = lastModifiedBy;
+    }
 
-    return data.deleted;
+    const { data } = await axios.patch(`${baseUrl}/designs/${gistId}`, payload);
+
+    return { 
+      deleted: data.deleted || false,
+      version: data.data?.version,
+      success: data.success
+    };
   } catch (error) {
+    if (error.response && error.response.status === 409) {
+      // Version conflict detected
+      throw {
+        conflict: true,
+        data: error.response.data
+      };
+    }
     console.error("Failed to update on server:", error);
     throw error;
+  }
+}
+
+// Get current design version
+export async function getCurrentVersion(gistId) {
+  // Handle local storage - always return version 1
+  if (gistId && gistId.startsWith('local_')) {
+    return { version: 1, lastModifiedBy: null };
+  }
+
+  try {
+    const { data } = await axios.get(`${baseUrl}/designs/${gistId}`);
+    // Extract version from the snapshot data
+    return {
+      version: data.data?.files?.['share.json']?.version || 1,
+      lastModifiedBy: data.data?.files?.['share.json']?.lastModifiedBy,
+      updatedAt: data.data?.updated_at
+    };
+  } catch (error) {
+    console.error("Failed to get current version:", error);
+    return { version: 1, lastModifiedBy: null };
   }
 }
 
