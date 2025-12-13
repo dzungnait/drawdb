@@ -16,8 +16,8 @@ export default function Editor() {
   useThemedPage();
 
   return (
-    <LayoutContextProvider>
-      <TransformContextProvider>
+    <TransformContextProvider>
+      <LayoutContextProvider>
         <UndoRedoContextProvider>
           <SelectContextProvider>
             <TasksContextProvider>
@@ -37,7 +37,7 @@ export default function Editor() {
             </TasksContextProvider>
           </SelectContextProvider>
         </UndoRedoContextProvider>
-      </TransformContextProvider>
-    </LayoutContextProvider>
+      </LayoutContextProvider>
+    </TransformContextProvider>
   );
 }

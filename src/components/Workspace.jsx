@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, createContext } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ControlPanel from "./EditorHeader/ControlPanel";
 import Canvas from "./EditorCanvas/Canvas";
 import { CanvasContextProvider } from "../context/CanvasContext";
+import { IdContext } from "../context/IdContext";
 import SidePanel from "./EditorSidePanel/SidePanel";
 import { DB, State } from "../data/constants";
 import { db } from "../data/db";
@@ -19,21 +20,14 @@ import {
   useEnums,
 } from "../hooks";
 import FloatingControls from "./FloatingControls";
-import { Button, Modal, Tag } from "@douyinfe/semi-ui";
+import { Button, Modal, Tag, Toast } from "@douyinfe/semi-ui";
 import { IconAlertTriangle } from "@douyinfe/semi-icons";
 import { useTranslation } from "react-i18next";
 import { databases } from "../data/databases";
 import { isRtl } from "../i18n/utils/rtl";
-import { useSearchParams } from "react-router-dom";
-import { get, patch, SHARE_FILENAME } from "../api/gists";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion } from "../api/gists";
 import { nanoid } from "nanoid";
-
-export const IdContext = createContext({
-  gistId: "",
-  setGistId: () => {},
-  version: "",
-  setVersion: () => {},
-});
 
 const SIDEPANEL_MIN_WIDTH = 384;
 
@@ -49,13 +43,14 @@ export default function WorkSpace() {
   const [showSelectDbModal, setShowSelectDbModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedDb, setSelectedDb] = useState("");
+  const [failedToLoadDesign, setFailedToLoadDesign] = useState(false);
   const { layout, setLayout } = useLayout();
   const { settings } = useSettings();
   const { types, setTypes } = useTypes();
   const { areas, setAreas } = useAreas();
   const { tasks, setTasks } = useTasks();
   const { notes, setNotes } = useNotes();
-  const { saveState, setSaveState } = useSaveState();
+  const { saveState, setSaveState, sessionId } = useSaveState();
   const { transform, setTransform } = useTransform();
   const { enums, setEnums } = useEnums();
   const {
@@ -68,6 +63,7 @@ export default function WorkSpace() {
   } = useDiagram();
   const { undoStack, redoStack, setUndoStack, setRedoStack } = useUndoRedo();
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   let [searchParams, setSearchParams] = useSearchParams();
   const handleResize = (e) => {
     if (!resize) return;
@@ -90,81 +86,59 @@ export default function WorkSpace() {
       areas: areas,
       todos: tasks,
       gistId: gistId ?? "",
-      pan: transform.pan,
-      zoom: transform.zoom,
+      pan: transform?.pan || { x: 0, y: 0 },
+      zoom: transform?.zoom || 1,
       loadedFromGistId: loadedFromGistId,
       ...(databases[database].hasEnums && { enums: enums }),
       ...(databases[database].hasTypes && { types: types }),
     };
 
-    if (saveAsDiagram) {
-      if (searchParams.has("shareId")) {
-        searchParams.delete("shareId");
-        setSearchParams(searchParams, { replace: true });
-      }
+      if (saveAsDiagram) {
+        if (searchParams.has("shareId")) {
+          searchParams.delete("shareId");
+          setSearchParams(searchParams, { replace: true });
+        }
 
-      // Sync to server if diagram is shared
-      if (gistId && gistId !== "") {
-        try {
-          const shareData = {
-            title,
+        if ((id === 0 && window.name === "") || op === "lt") {
+          await db.diagrams
+            .add(diagramData)
+            .then((newId) => {
+              setId(newId);
+              window.name = `d ${newId}`;
+              setSaveState(State.SAVED);
+              setLastSaved(new Date().toLocaleString());
+            });
+        } else {
+          await db.diagrams
+            .update(id, diagramData)
+            .then(() => {
+              setSaveState(State.SAVED);
+              setLastSaved(new Date().toLocaleString());
+            });
+        }
+      } else {
+        await db.templates
+          .update(id, {
+            database: database,
+            title: title,
             tables: tables,
             relationships: relationships,
             notes: notes,
             subjectAreas: areas,
-            database: database,
-            ...(databases[database].hasTypes && { types: types }),
+            todos: tasks,
+            pan: transform?.pan || { x: 0, y: 0 },
+            zoom: transform?.zoom || 1,
             ...(databases[database].hasEnums && { enums: enums }),
-            transform: transform,
-          };
-          await patch(gistId, SHARE_FILENAME, JSON.stringify(shareData));
-        } catch (e) {
-          console.error("Failed to sync to server:", e);
-          setSaveState(State.ERROR);
-          return;
-        }
-      }
-
-      if ((id === 0 && window.name === "") || op === "lt") {
-        await db.diagrams
-          .add(diagramData)
-          .then((newId) => {
-            setId(newId);
-            window.name = `d ${newId}`;
-            setSaveState(State.SAVED);
-            setLastSaved(new Date().toLocaleString());
-          });
-      } else {
-        await db.diagrams
-          .update(id, diagramData)
+            ...(databases[database].hasTypes && { types: types }),
+          })
           .then(() => {
             setSaveState(State.SAVED);
             setLastSaved(new Date().toLocaleString());
+          })
+          .catch(() => {
+            setSaveState(State.ERROR);
           });
       }
-    } else {
-      await db.templates
-        .update(id, {
-          database: database,
-          title: title,
-          tables: tables,
-          relationships: relationships,
-          notes: notes,
-          subjectAreas: areas,
-          todos: tasks,
-          pan: transform.pan,
-          zoom: transform.zoom,
-          ...(databases[database].hasEnums && { enums: enums }),
-          ...(databases[database].hasTypes && { types: types }),
-        })
-        .then(() => {
-          setSaveState(State.SAVED);
-          setLastSaved(new Date().toLocaleString());
-        })
-        .catch(() => {
-          setSaveState(State.ERROR);
-        });
-    }
   }, [
     searchParams,
     setSearchParams,
@@ -176,13 +150,279 @@ export default function WorkSpace() {
     title,
     id,
     tasks,
+      transform,
+      setSaveState,
+      database,
+      enums,
+      gistId,
+      loadedFromGistId,
+    ],
+  );
+
+  // Auto-create design on server when first saving
+  const ensureDesignOnServer = useCallback(async () => {
+    if (gistId && gistId !== "") {
+      return gistId; // Already created
+    }
+
+    const initialData = {
+      title: title || "Untitled Diagram",
+      tables: tables || [],
+      relationships: relationships || [],
+      notes: notes || [],
+      subjectAreas: areas || [],
+      database: database,
+      ...(databases[database].hasTypes && { types: types || [] }),
+      ...(databases[database].hasEnums && { enums: enums || [] }),
+      transform: transform,
+    };
+
+    const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData));
+    setGistId(newDesignId);
+    
+    // Only update URL with designId if it's not a local ID
+    if (!newDesignId.startsWith('local_')) {
+      const params = new URLSearchParams();
+      params.set("designId", newDesignId);
+      setSearchParams(params, { replace: true });
+    }
+    
+    return newDesignId;
+  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, setSearchParams, setGistId]);
+
+  const syncToServer = useCallback(async () => {
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      // Ensure design exists on server
+      const designId = await ensureDesignOnServer();
+      
+      // Handle local designs without version control
+      if (designId.startsWith('local_')) {
+        const shareData = {
+          title,
+          tables: tables,
+          relationships: relationships,
+          notes: notes,
+          subjectAreas: areas,
+          database: database,
+          ...(databases[database].hasTypes && { types: types }),
+          ...(databases[database].hasEnums && { enums: enums }),
+          transform: transform,
+        };
+        await patch(designId, SHARE_FILENAME, JSON.stringify(shareData));
+        setSaveState(State.SAVED);
+        setLastSaved(new Date().toLocaleString());
+        return;
+      }
+      
+      // Get current version for server designs
+      const { version: currentVersion } = await getCurrentVersion(designId);
+      
+      const shareData = {
+        title,
+        tables: tables,
+        relationships: relationships,
+        notes: notes,
+        subjectAreas: areas,
+        database: database,
+        ...(databases[database].hasTypes && { types: types }),
+        ...(databases[database].hasEnums && { enums: enums }),
+        transform: transform,
+      };
+      
+      try {
+        // Save with version control
+        await patch(
+          designId, 
+          SHARE_FILENAME, 
+          JSON.stringify(shareData),
+          currentVersion,
+          sessionId // Use sessionId as lastModifiedBy
+        );
+        setSaveState(State.SAVED);
+        setLastSaved(new Date().toLocaleString());
+      } catch (error) {
+        if (error.conflict) {
+          // Handle version conflict
+          Toast.error(
+            "Conflict detected: Another user has modified this design. Please refresh and try again.",
+            { duration: 5000 }
+          );
+          // TODO: Show conflict resolution UI
+          console.log("Conflict data:", error.data);
+        } else {
+          throw error;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync to server:", e);
+      // Don't set error state for local designs
+      if (!gistId || !gistId.startsWith('local_')) {
+        setSaveState(State.ERROR);
+      }
+    }
+  }, [
+    gistId,
+    title,
+    tables,
+    relationships,
+    notes,
+    areas,
+    database,
+    types,
+    enums,
     transform,
     setSaveState,
-    database,
-    enums,
-    gistId,
-    loadedFromGistId,
+    sessionId,
+    ensureDesignOnServer,
   ]);
+
+  // Create manual snapshot/version
+  const createManualSnapshot = useCallback(async (comment = '') => {
+    if (!gistId || gistId.startsWith('local_')) {
+      Toast.info("Snapshots are only available for server-saved designs");
+      return;
+    }
+
+    try {
+      setSaveState(State.SAVING);
+      const result = await createSnapshot(gistId, comment);
+      if (result.success) {
+        Toast.success(`Snapshot v${result.data.version_number} created successfully`);
+      }
+      setSaveState(State.SAVED);
+    } catch (error) {
+      console.error("Failed to create snapshot:", error);
+      Toast.error("Failed to create snapshot");
+      setSaveState(State.ERROR);
+    }
+  }, [gistId, setSaveState]);
+
+  // Load design from server/local storage
+  const loadFromGist = useCallback(async (shareId) => {
+    try {
+      console.log("Calling API to get design:", shareId);
+      const { data } = await get(shareId);
+      console.log("API response received:", data);
+      const parsedDiagram = JSON.parse(data.files[SHARE_FILENAME].content);
+      setUndoStack([]);
+      setRedoStack([]);
+      setGistId(shareId);
+      setLoadedFromGistId(shareId);
+      setDatabase(parsedDiagram.database);
+      setTitle(parsedDiagram.title);
+      setTables(parsedDiagram.tables);
+      setRelationships(parsedDiagram.relationships);
+      setNotes(parsedDiagram.notes);
+      setAreas(parsedDiagram.subjectAreas);
+      setTransform(parsedDiagram.transform || { pan: { x: 0, y: 0 }, zoom: 1 });
+      if (databases[parsedDiagram.database].hasTypes) {
+        if (parsedDiagram.types) {
+          setTypes(
+            parsedDiagram.types.map((t) =>
+              t.id
+                ? t
+                : {
+                    ...t,
+                    id: nanoid(),
+                    fields: t.fields.map((f) =>
+                      f.id ? f : { ...f, id: nanoid() },
+                    ),
+                  },
+            ),
+          );
+        } else {
+          setTypes([]);
+        }
+      }
+      if (databases[parsedDiagram.database].hasEnums) {
+        setEnums(
+          parsedDiagram.enums.map((e) =>
+            !e.id ? { ...e, id: nanoid() } : e,
+          ) ?? [],
+        );
+      }
+      setSaveState(State.SAVED);
+      setFailedToLoadDesign(false);
+    } catch (e) {
+      console.error("Failed to load design from server:", e);
+      setFailedToLoadDesign(true);
+      Toast.error("Failed to load design. Design may have been deleted or link is invalid.");
+      // Redirect to landing page after showing error
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
+    }
+  }, [setUndoStack, setRedoStack, setGistId, setLoadedFromGistId, setDatabase, setTitle, setTables, setRelationships, setNotes, setAreas, setTransform, setTypes, setEnums, setSaveState, setFailedToLoadDesign, navigate]);
+
+  const initializeEditor = useCallback(async () => {
+    const shareId = searchParams.get("shareId");
+    const designId = searchParams.get("designId");
+    
+    // If we already tried to load and failed, don't retry
+    if (failedToLoadDesign) {
+      return;
+    }
+    
+    if (shareId) {
+      const existingDiagram = await db.diagrams.get({
+        loadedFromGistId: shareId,
+      });
+
+      if (existingDiagram) {
+        window.name = "d " + existingDiagram.id;
+        setId(existingDiagram.id);
+      } else {
+        window.name = "";
+        setId(0);
+      }
+      await loadFromGist(shareId);
+      return;
+    }
+
+    if (designId) {
+      // Load design from server by designId
+      console.log("Loading design with ID:", designId);
+      setGistId(designId);
+      await loadFromGist(designId);
+      return;
+    }
+
+    // For new designs (no shareId or designId), don't load anything
+    // Just initialize with empty state
+    if (!shareId && !designId) {
+      // Set default database if none selected
+      if (selectedDb === "") {
+        setShowSelectDbModal(true);
+      }
+      return;
+    }
+
+    // Handle other cases (existing local diagrams)
+    if (window.name === "") {
+      await loadLatestDiagram();
+    } else {
+      const name = window.name.split(" ");
+      const op = name[0];
+      const id = parseInt(name[1]);
+      switch (op) {
+        case "d": {
+          await loadDiagram(id);
+          break;
+        }
+        case "t":
+        case "lt": {
+          await loadTemplate(id);
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }, [searchParams, failedToLoadDesign, selectedDb]);
 
   const load = useCallback(async () => {
     const loadLatestDiagram = async () => {
@@ -205,7 +445,18 @@ export default function WorkSpace() {
             setNotes(d.notes);
             setAreas(d.areas);
             setTasks(d.todos ?? []);
-            setTransform({ pan: d.pan, zoom: d.zoom });
+            setTransform({ 
+              pan: d.pan || { x: 0, y: 0 }, 
+              zoom: d.zoom || 1 
+            });
+            
+            // Update URL with designId if gistId exists
+            if (d.gistId) {
+              const params = new URLSearchParams();
+              params.set("designId", d.gistId);
+              setSearchParams(params, { replace: true });
+            }
+            
             if (databases[database].hasTypes) {
               if (d.types) {
                 setTypes(
@@ -261,11 +512,19 @@ export default function WorkSpace() {
             setNotes(diagram.notes);
             setTasks(diagram.todos ?? []);
             setTransform({
-              pan: diagram.pan,
-              zoom: diagram.zoom,
+              pan: diagram.pan || { x: 0, y: 0 },
+              zoom: diagram.zoom || 1,
             });
             setUndoStack([]);
             setRedoStack([]);
+            
+            // Update URL with designId if gistId exists
+            if (diagram.gistId) {
+              const params = new URLSearchParams();
+              params.set("designId", diagram.gistId);
+              setSearchParams(params, { replace: true });
+            }
+            
             if (databases[database].hasTypes) {
               if (diagram.types) {
                 setTypes(
@@ -361,54 +620,10 @@ export default function WorkSpace() {
         });
     };
 
-    const loadFromGist = async (shareId) => {
-      try {
-        const { data } = await get(shareId);
-        const parsedDiagram = JSON.parse(data.files[SHARE_FILENAME].content);
-        setUndoStack([]);
-        setRedoStack([]);
-        setGistId(shareId);
-        setLoadedFromGistId(shareId);
-        setDatabase(parsedDiagram.database);
-        setTitle(parsedDiagram.title);
-        setTables(parsedDiagram.tables);
-        setRelationships(parsedDiagram.relationships);
-        setNotes(parsedDiagram.notes);
-        setAreas(parsedDiagram.subjectAreas);
-        setTransform(parsedDiagram.transform);
-        if (databases[parsedDiagram.database].hasTypes) {
-          if (parsedDiagram.types) {
-            setTypes(
-              parsedDiagram.types.map((t) =>
-                t.id
-                  ? t
-                  : {
-                      ...t,
-                      id: nanoid(),
-                      fields: t.fields.map((f) =>
-                        f.id ? f : { ...f, id: nanoid() },
-                      ),
-                    },
-              ),
-            );
-          } else {
-            setTypes([]);
-          }
-        }
-        if (databases[parsedDiagram.database].hasEnums) {
-          setEnums(
-            parsedDiagram.enums.map((e) =>
-              !e.id ? { ...e, id: nanoid() } : e,
-            ) ?? [],
-          );
-        }
-      } catch (e) {
-        console.log(e);
-        setSaveState(State.FAILED_TO_LOAD);
-      }
-    };
-
+    // This is only used for reloading existing diagrams, not for initial load
     const shareId = searchParams.get("shareId");
+    const designId = searchParams.get("designId");
+    
     if (shareId) {
       const existingDiagram = await db.diagrams.get({
         loadedFromGistId: shareId,
@@ -422,6 +637,23 @@ export default function WorkSpace() {
         setId(0);
       }
       await loadFromGist(shareId);
+      return;
+    }
+
+    if (designId) {
+      // Load design from server by designId
+      setGistId(designId);
+      await loadFromGist(designId);
+      return;
+    }
+
+    // For new designs (no shareId or designId), don't load anything
+    // Just initialize with empty state
+    if (!shareId && !designId && window.name === "") {
+      // Set default database if none selected
+      if (selectedDb === "") {
+        setShowSelectDbModal(true);
+      }
       return;
     }
 
@@ -470,16 +702,15 @@ export default function WorkSpace() {
   };
 
   useEffect(() => {
-    if (
-      tables?.length === 0 &&
-      areas?.length === 0 &&
-      notes?.length === 0 &&
-      types?.length === 0 &&
-      tasks?.length === 0
-    )
-      return;
+    // Always allow saving if there's a title change or if there's actual content
+    const hasContent = tables?.length > 0 ||
+      areas?.length > 0 ||
+      notes?.length > 0 ||
+      types?.length > 0 ||
+      tasks?.length > 0;
 
-    if (settings.autosave) {
+    // Save if autosave is enabled and either has content or title exists
+    if (settings.autosave && (hasContent || title)) {
       setSaveState(State.SAVING);
     }
   }, [
@@ -492,7 +723,7 @@ export default function WorkSpace() {
     types?.length,
     relationships?.length,
     tasks?.length,
-    transform.zoom,
+    transform?.zoom || 1,
     title,
     gistId,
     setSaveState,
@@ -506,15 +737,45 @@ export default function WorkSpace() {
     save();
   }, [saveState, layout, save]);
 
+  // Auto-sync to server after save
+  useEffect(() => {
+    if (saveState !== State.SAVED) return;
+    if (!gistId) return; // Don't sync if design not on server yet
+
+    const syncTimer = setTimeout(() => {
+      syncToServer();
+    }, 500); // Debounce 500ms to avoid too many requests
+
+    return () => clearTimeout(syncTimer);
+  }, [saveState, gistId, syncToServer]);
+
   useEffect(() => {
     document.title = "Editor | drawDB";
+  }, []);
 
-    load();
-  }, [load]);
+  // Initialize editor when URL changes
+  useEffect(() => {
+    initializeEditor();
+  }, [searchParams]); // Run when URL params change
+
+  // Heartbeat - keep lock alive every 5 minutes
+  useEffect(() => {
+    if (!gistId || !sessionId) return;
+
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        await heartbeat(gistId, sessionId);
+      } catch (error) {
+        console.warn("Heartbeat failed:", error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(heartbeatInterval);
+  }, [gistId, sessionId]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion }}>
+      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot }}>
         <ControlPanel
           diagramId={id}
           setDiagramId={setId}
@@ -546,13 +807,16 @@ export default function WorkSpace() {
           {version && (
             <div className="absolute right-8 top-2 space-x-2">
               <Button
+                size="large"
+                style={{ backgroundColor: 'white', color: 'black' }}
                 icon={<i className="fa-solid fa-rotate-right mt-0.5"></i>}
                 onClick={() => setShowRestoreModal(true)}
               >
                 {t("restore_version")}
               </Button>
               <Button
-                type="tertiary"
+                size="large"
+                style={{ backgroundColor: 'white', color: 'black' }}
                 onClick={returnToCurrentDiagram}
                 icon={<i className="bi bi-arrow-return-right mt-1"></i>}
               >

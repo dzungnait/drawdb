@@ -77,7 +77,7 @@ import { databases } from "../../data/databases";
 import { jsonToMermaid } from "../../utils/exportAs/mermaid";
 import { isRtl } from "../../i18n/utils/rtl";
 import { jsonToDocumentation } from "../../utils/exportAs/documentation";
-import { IdContext } from "../Workspace";
+import { IdContext } from "../../context/IdContext";
 import { socials } from "../../data/socials";
 import { toDBML } from "../../utils/exportAs/dbml";
 import { exportSavedData } from "../../utils/exportSavedData";
@@ -130,7 +130,7 @@ export default function ControlPanel({
   const { selectedElement, setSelectedElement } = useSelect();
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
-  const { version, gistId, setGistId } = useContext(IdContext);
+  const { version, gistId, setGistId, syncToServer, createManualSnapshot } = useContext(IdContext);
   const navigate = useNavigate();
 
   const invertLayout = (component) =>
@@ -747,7 +747,10 @@ export default function ControlPanel({
   const toggleDBMLEditor = () => {
     setLayout((prev) => ({ ...prev, dbmlEditor: !prev.dbmlEditor }));
   };
-  const save = () => setSaveState(State.SAVING);
+  const save = () => {
+    setSaveState(State.SAVING);
+    syncToServer();
+  };
   const recentlyOpenedDiagrams = useLiveQuery(() =>
     db.diagrams.orderBy("lastModified").reverse().limit(10).toArray(),
   );
@@ -1575,12 +1578,12 @@ export default function ControlPanel({
       shortcuts: {
         function: () => window.open(`${socials.docs}/shortcuts`, "_blank"),
       },
-      ask_on_discord: {
-        function: () => window.open(socials.discord, "_blank"),
-      },
-      report_bug: {
-        function: () => window.open("/bug-report", "_blank"),
-      },
+      // ask_on_discord: {
+      //   function: () => window.open(socials.discord, "_blank"),
+      // },
+      // report_bug: {
+      //   function: () => window.open("/bug-report", "_blank"),
+      // },
     },
   };
 
@@ -1806,14 +1809,6 @@ export default function ControlPanel({
               <i className="fa-solid fa-code-branch" />{" "}
             </button>
           </Tooltip>
-          <Tooltip content={t("to_do")} position="bottom">
-            <button
-              className="py-1 px-2 hover-2 rounded-sm text-xl -mt-0.5"
-              onClick={() => setSidesheet(SIDESHEET.TODO)}
-            >
-              <i className="fa-regular fa-calendar-check" />
-            </button>
-          </Tooltip>
           <Divider layout="vertical" margin="8px" />
           <Tooltip content={t("theme")} position="bottom">
             <button
@@ -1909,7 +1904,7 @@ export default function ControlPanel({
                 </span>
                 {version && (
                   <Tag className="mt-1" color="blue" size="small">
-                    {version.substring(0, 7)}
+                    {typeof version === 'string' ? version.substring(0, 7) : version}
                   </Tag>
                 )}
               </div>

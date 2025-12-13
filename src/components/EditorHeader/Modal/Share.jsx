@@ -1,7 +1,7 @@
 import { Banner, Button, Input, Spin, Toast } from "@douyinfe/semi-ui";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IdContext } from "../../Workspace";
+import { IdContext } from "../../../context/IdContext";
 import { IconLink } from "@douyinfe/semi-icons";
 import {
   useAreas,
@@ -10,14 +10,16 @@ import {
   useNotes,
   useTransform,
   useTypes,
+  useSaveState,
 } from "../../../hooks";
 import { databases } from "../../../data/databases";
 import { MODAL } from "../../../data/constants";
-import { create, patch, SHARE_FILENAME } from "../../../api/gists";
+import { create, patch, del, SHARE_FILENAME } from "../../../api/gists";
 
 export default function Share({ title, setModal }) {
   const { t } = useTranslation();
   const { gistId, setGistId } = useContext(IdContext);
+  const { sessionId } = useSaveState();
   const [loading, setLoading] = useState(true);
   const { tables, relationships, database } = useDiagram();
   const { notes } = useNotes();
@@ -55,10 +57,8 @@ export default function Share({ title, setModal }) {
 
   const unshare = useCallback(async () => {
     try {
-      const deleted = await patch(gistId, SHARE_FILENAME, undefined);
-      if (deleted) {
-        setGistId("");
-      }
+      await del(gistId);
+      setGistId("");
       setModal(MODAL.NONE);
     } catch (e) {
       console.error(e);
@@ -70,11 +70,15 @@ export default function Share({ title, setModal }) {
     const updateOrGenerateLink = async () => {
       try {
         setLoading(true);
-        if (!gistId || gistId === "") {
+        const newGistId = gistId || "";
+
+        if (!newGistId || newGistId === "") {
+          // Create new share
           const id = await create(SHARE_FILENAME, diagramToString());
           setGistId(id);
         } else {
-          await patch(gistId, SHARE_FILENAME, diagramToString());
+          // Update existing share
+          await patch(newGistId, SHARE_FILENAME, diagramToString());
         }
       } catch (e) {
         setError(e);
