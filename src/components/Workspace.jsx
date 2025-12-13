@@ -94,10 +94,11 @@ export default function WorkSpace() {
     };
 
       if (saveAsDiagram) {
-        if (searchParams.has("shareId")) {
-          searchParams.delete("shareId");
-          setSearchParams(searchParams, { replace: true });
-        }
+        // Không xoá shareId khỏi URL để maintain shared link
+        // if (searchParams.has("shareId")) {
+        //   searchParams.delete("shareId");
+        //   setSearchParams(searchParams, { replace: true });
+        // }
 
         if ((id === 0 && window.name === "") || op === "lt") {
           await db.diagrams
@@ -347,6 +348,14 @@ export default function WorkSpace() {
       }
       setSaveState(State.SAVED);
       setFailedToLoadDesign(false);
+      
+      // Update URL để persist shareId
+      const currentShareId = new URLSearchParams(window.location.search).get("shareId");
+      if (shareId && !currentShareId) {
+        const params = new URLSearchParams();
+        params.set("shareId", shareId);
+        window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      }
     } catch (e) {
       console.error("Failed to load design from server:", e);
       setFailedToLoadDesign(true);
@@ -361,6 +370,8 @@ export default function WorkSpace() {
   const initializeEditor = useCallback(async () => {
     const shareId = searchParams.get("shareId");
     const designId = searchParams.get("designId");
+    
+    console.log("initializeEditor called with:", { shareId, designId });
     
     // If we already tried to load and failed, don't retry
     if (failedToLoadDesign) {
@@ -484,7 +495,12 @@ export default function WorkSpace() {
             window.name = `d ${d.id}`;
           } else {
             window.name = "";
-            if (selectedDb === "") setShowSelectDbModal(true);
+            // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+            const shareId = searchParams.get("shareId");
+            const designId = searchParams.get("designId");
+            if (selectedDb === "" && !shareId && !designId) {
+              setShowSelectDbModal(true);
+            }
           }
         })
         .catch((error) => {
@@ -611,12 +627,18 @@ export default function WorkSpace() {
               );
             }
           } else {
-            if (selectedDb === "") setShowSelectDbModal(true);
+            // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+            if (selectedDb === "" && !searchParams.get("shareId") && !searchParams.get("designId")) {
+              setShowSelectDbModal(true);
+            }
           }
         })
         .catch((error) => {
           console.log(error);
-          if (selectedDb === "") setShowSelectDbModal(true);
+          // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+          if (selectedDb === "" && !searchParams.get("shareId") && !searchParams.get("designId")) {
+            setShowSelectDbModal(true);
+          }
         });
     };
 
@@ -753,10 +775,10 @@ export default function WorkSpace() {
     document.title = "Editor | drawDB";
   }, []);
 
-  // Initialize editor when URL changes
+  // Initialize editor when URL changes or component mounts
   useEffect(() => {
     initializeEditor();
-  }, [searchParams]); // Run when URL params change
+  }, [initializeEditor]); // Run when URL params change or component mounts
 
   // Heartbeat - keep lock alive every 5 minutes
   useEffect(() => {

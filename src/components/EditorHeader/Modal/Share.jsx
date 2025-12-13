@@ -56,15 +56,9 @@ export default function Share({ title, setModal }) {
   ]);
 
   const unshare = useCallback(async () => {
-    try {
-      await del(gistId);
-      setGistId("");
-      setModal(MODAL.NONE);
-    } catch (e) {
-      console.error(e);
-      setError(e);
-    }
-  }, [gistId, setModal, setGistId]);
+    // Chỉ đóng popup, không xoá database
+    setModal(MODAL.NONE);
+  }, [setModal]);
 
   useEffect(() => {
     const updateOrGenerateLink = async () => {
