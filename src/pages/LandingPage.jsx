@@ -1,311 +1,281 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import SimpleCanvas from "../components/SimpleCanvas";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { diagram } from "../data/heroDiagram";
+import { listDesigns, del as deleteDesign } from "../api/gists";
 import mysql_icon from "../assets/mysql.png";
 import postgres_icon from "../assets/postgres.png";
 import sqlite_icon from "../assets/sqlite.png";
 import mariadb_icon from "../assets/mariadb.png";
 import oraclesql_icon from "../assets/oraclesql.png";
 import sql_server_icon from "../assets/sql-server.png";
-import discord from "../assets/discord.png";
-import github from "../assets/github.png";
-import warp from "../assets/warp.png";
-import screenshot from "../assets/screenshot.png";
-import FadeIn from "../animations/FadeIn";
-import axios from "axios";
-import { languages } from "../i18n/i18n";
-import { Tweet } from "react-tweet";
-import { socials } from "../data/socials";
-
-function shortenNumber(number) {
-  if (number < 1000) return number;
-
-  if (number >= 1000 && number < 1_000_000)
-    return `${(number / 1000).toFixed(1)}k`;
-}
 
 export default function LandingPage() {
-  const [stats, setStats] = useState({ stars: 18000, forks: 1200 });
+  const [designs, setDesigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchStats = async () => {
-      await axios
-        .get("https://api.github-star-counter.workers.dev/user/drawdb-io")
-        .then((res) => setStats(res.data));
-    };
-
     document.body.setAttribute("theme-mode", "light");
-    document.title =
-      "drawDB | Online database diagram editor and SQL generator";
+    document.title = "drawDB | Online database diagram editor and SQL generator";
 
-    fetchStats();
-  }, []);
+    loadDesigns();
+  }, [page, search]);
+
+  const loadDesigns = async () => {
+    try {
+      setLoading(true);
+      const response = await listDesigns(page, 12, search);
+      setDesigns(response.data);
+      setTotal(response.pagination.total);
+    } catch (error) {
+      console.error("Error loading designs:", error);
+      setDesigns([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateNew = () => {
+    navigate("/editor");
+  };
+
+  const handleOpenDesign = (id) => {
+    navigate(`/editor?designId=${id}`);
+  };
+
+  const handleDeleteDesign = async (e, id) => {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this design?")) {
+      try {
+        await deleteDesign(id);
+        loadDesigns(); // Reload list after delete
+      } catch (error) {
+        console.error("Error deleting design:", error);
+      }
+    }
+  };
+
+  const handleSearch = (e) => {
+    setSearch(e.target.value);
+    setPage(1); // Reset to first page on search
+  };
 
   return (
-    <div>
-      <div className="flex flex-col h-screen bg-zinc-100">
-        <div className="text-white font-semibold py-1 text-sm text-center bg-linear-to-r from-[#12495e] from-10% via-slate-500 to-[#12495e]" />
-
-        <FadeIn duration={0.6}>
-          <Navbar />
-        </FadeIn>
-
-        {/* Hero section */}
-        <div className="flex-1 flex-col relative mx-4 md:mx-0 mb-4 rounded-3xl bg-white">
-          <div className="h-full md:hidden">
-            <SimpleCanvas diagram={diagram} zoom={0.85} />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-4xl font-bold text-slate-900">My Designs</h1>
+            <button
+              onClick={handleCreateNew}
+              className="px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold"
+            >
+              + New Design
+            </button>
           </div>
-          <div className="hidden md:block h-full bg-dots" />
-          <div className="absolute left-12 w-[45%] top-[50%] translate-y-[-54%] md:left-[50%] md:translate-x-[-50%] p-8 md:p-3 md:w-full text-zinc-800">
-            <FadeIn duration={0.75}>
-              <div className="md:px-3">
-                <h1 className="text-[42px] md:text-3xl font-bold tracking-wide bg-linear-to-r from-sky-900 from-10% via-slate-500 to-[#12495e] inline-block text-transparent bg-clip-text">
-                  Draw, Copy, and Paste
-                </h1>
-                <div className="text-lg font-medium mt-1 sliding-vertical">
-                  Free and open source, simple, and intuitive database design
-                  editor, data-modeler, and SQL generator.{" "}
-                  <span className="ms-2 sm:block sm:ms-0 text-slate-500 bg-white font-bold whitespace-nowrap">
-                    No sign up
-                  </span>
-                  <span className="ms-2 sm:block sm:ms-0 text-slate-500 bg-white font-bold whitespace-nowrap">
-                    Free of charge
-                  </span>
-                  <span className="ms-2 sm:block sm:ms-0 text-slate-500 bg-white font-bold whitespace-nowrap">
-                    Quick and easy
-                  </span>
-                </div>
-              </div>
-            </FadeIn>
-            <div className="mt-4 font-semibold md:mt-12">
-              <button
-                className="py-3 mb-4 xl:mb-0 mr-4 transition-all duration-300 bg-white border rounded-full shadow-lg px-9 border-zinc-200 hover:bg-zinc-100 cursor-pointer"
-                onClick={() =>
-                  document
-                    .getElementById("learn-more")
-                    .scrollIntoView({ behavior: "smooth" })
-                }
-              >
-                Learn more
-              </button>
-              <Link
-                to="/editor"
-                className="inline-block py-3 text-white transition-all duration-300 rounded-full shadow-lg bg-sky-900 ps-7 pe-6 hover:bg-sky-800"
-              >
-                Try it for yourself <i className="bi bi-arrow-right ms-1"></i>
-              </Link>
-            </div>
+          <div className="flex gap-4 items-center">
+            <p className="text-slate-600 flex-1">Create, edit, and manage your database diagrams</p>
+            <input
+              type="text"
+              placeholder="Search designs..."
+              value={search}
+              onChange={handleSearch}
+              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 w-64"
+            />
           </div>
         </div>
+
+        {/* Designs Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-slate-600">Loading designs...</div>
+          </div>
+        ) : designs.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
+            <div className="text-6xl mb-4">📋</div>
+            <h2 className="text-2xl font-semibold text-slate-900 mb-2">No designs yet</h2>
+            <p className="text-slate-600 mb-6">Create your first database diagram to get started</p>
+            <button
+              onClick={handleCreateNew}
+              className="px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-semibold"
+            >
+              Create Your First Design
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {designs.map((design) => (
+              <div
+                key={design.id}
+                onClick={() => handleOpenDesign(design.id)}
+                className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg hover:border-sky-300 transition-all duration-300 group"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900 group-hover:text-sky-600 truncate">
+                      {design.name || "Untitled Diagram"}
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {design.database || "Generic"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteDesign(e, design.id)}
+                    className="ml-2 px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div>📊 {design.tables?.length || 0} tables</div>
+                  <div>🔗 {design.relationships?.length || 0} relationships</div>
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <p className="text-xs text-slate-500">
+                    Last modified: {new Date(design.last_modified || design.updated_at).toLocaleDateString()} {new Date(design.last_modified || design.updated_at).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {total > 12 && (
+          <div className="mt-8 flex justify-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-4 py-2 text-slate-600">
+              Page {page} of {Math.ceil(total / 12)}
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page >= Math.ceil(total / 12)}
+              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Learn more */}
-      <div id="learn-more">
-        <div className="bg-zinc-100 py-10 px-28 md:px-8">
-          {/* Supported by */}
-          <div className="text-center mb-16">
-            <div className="text-2xl md:text-xl font-bold text-sky-800 mb-8">
-              Supported by
-            </div>
-            <div>
-              <a
-                href="https://warp.dev/drawdb"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <img
-                  src={warp}
-                  alt="warp.dev"
-                  width={260}
-                  className="m-auto mb-4"
-                />
-                <div className="font-semibold text-lg md:text-base">
-                  Next-gen AI-powered intelligent terminal for all platforms
-                </div>
-              </a>
-            </div>
-          </div>
-          <div className="mt-16 w-[75%] text-center sm:w-full mx-auto shadow-xs rounded-2xl border p-6 bg-white space-y-3 mb-12">
-            <div className="text-lg font-medium">
-              Build diagrams with a few clicks, see the full picture, export SQL
-              scripts, customize your editor, and more.
-            </div>
-            <img src={screenshot} className="mx-auto" />
-          </div>
-          <div className="flex justify-center items-center gap-28 md:block">
-            <div className="text-center mb-4">
-              <div className="text-5xl md:text-3xl font-bold text-sky-800">
-                {shortenNumber(stats.stars)}
-              </div>
-              <div className="ms-1 mt-1 font-medium tracking-wide">
-                GitHub stars
-              </div>
-            </div>
-            <div className="text-center mb-4">
-              <div className="text-5xl md:text-3xl font-bold text-sky-800">
-                {shortenNumber(stats.forks)}
-              </div>
-              <div className="ms-1 mt-1 font-medium tracking-wide">
-                GitHub forks
-              </div>
-            </div>
-            <div className="text-center mb-4">
-              <div className="text-5xl md:text-3xl font-bold text-sky-800">
-                {shortenNumber(languages.length)}
-              </div>
-              <div className="ms-1 mt-1 font-medium tracking-wide">
-                Languages
-              </div>
-            </div>
-          </div>
-          <div className="text-lg font-medium text-center mt-12 mb-6">
-            Design for your database
-          </div>
-          <div className="grid grid-cols-3 place-items-center sm:grid-cols-1 sm:gap-10">
+      {/* Supported Databases */}
+      <div className="bg-white mt-16">
+        <div className="max-w-6xl mx-auto px-4 py-12">
+          <h2 className="text-2xl font-bold text-slate-900 text-center mb-2">Design for your database</h2>
+          <p className="text-slate-600 text-center mb-10">Support for multiple relational and object-relational databases</p>
+          <div className="grid grid-cols-3 place-items-center sm:grid-cols-1 sm:gap-10 gap-8">
             {dbs.map((s, i) => (
               <img
                 key={"icon-" + i}
                 src={s.icon}
                 style={{ height: s.height }}
-                className="opacity-70 hover:opacity-100 transition-opacity duration-300 md:scale-[0.7] md:mx-auto"
+                className="opacity-70 hover:opacity-100 transition-opacity duration-300"
               />
             ))}
           </div>
         </div>
-        <svg
-          viewBox="0 0 1440 54"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          width="100%"
-          className="bg-transparent"
-        >
-          <path
-            d="M0 54C0 54 320 0 720 0C1080 0 1440 54 1440 54V0H0V100Z"
-            fill="#f4f4f5"
-          />
-        </svg>
       </div>
 
       {/* Features */}
-      <div id="features" className="py-8 px-36 md:px-8">
-        <FadeIn duration={1}>
-          <div className="text-base font-medium text-center text-sky-900">
-            More than just an editor
-          </div>
-          <div className="text-2xl mt-1 font-medium text-center">
-            What drawDB has to offer
-          </div>
-          <div className="grid grid-cols-3 gap-8 mt-10 md:grid-cols-2 sm:grid-cols-1">
-            {features.map((f, i) => (
-              <div
-                key={"feature" + i}
-                className="flex rounded-xl hover:bg-zinc-100 border border-zinc-100 shadow-xs hover:-translate-y-2 transition-all duration-300"
-              >
-                <div className="bg-sky-700 px-0.5 rounded-l-xl" />
-                <div className="px-8 py-4 ">
-                  <div className="text-lg font-semibold mb-3">{f.title}</div>
-                  {f.content}
-                  <div className="mt-2 text-xs opacity-60">{f.footer}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </FadeIn>
-      </div>
-
-      {/* Tweets */}
-      <div className="px-40 mt-6 md:px-8">
-        <div className="text-center text-2xl md:text-xl font-medium">
-          What the internet says about us
+      <div className="max-w-6xl mx-auto px-4 py-16">
+        <div className="text-base font-medium text-center text-sky-900 mb-2">
+          More than just an editor
         </div>
-        <div
-          data-theme="light"
-          className="grid grid-cols-2 place-items-center md:grid-cols-1"
-        >
-          <Tweet id="1816111365125218343" />
-          <Tweet id="1817933406337905021" />
-          <Tweet id="1785457354777006524" />
-          <Tweet id="1776842268042756248" />
-        </div>
-      </div>
-
-      {/* Contact us */}
-      <svg
-        viewBox="0 0 1440 54"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        width="100%"
-        className="bg-transparent -scale-100"
-      >
-        <path
-          d="M0 48 C0 48 320 0 720 0C1080 0 1440 48 1440 48V0H0V100Z"
-          fill="#f4f4f5"
-        />
-      </svg>
-      <div className="bg-zinc-100 py-8 px-32 md:px-8">
-        <div className="mt-4 mb-2 text-2xl font-bold text-center">
-          Reach out to us
-        </div>
-        <div className="text-lg text-center mb-4">
-          We love hearing from you. Join our community on Discord, GitHub, and
-          X.
-        </div>
-        <div className="px-36 text-center md:px-8">
-          <div className="md:block md:space-y-3 flex gap-3 justify-center">
-            <a
-              className="inline-block"
-              href={socials.github}
-              target="_blank"
-              rel="noreferrer"
+        <h2 className="text-2xl font-bold text-center text-slate-900 mb-12">
+          What drawDB has to offer
+        </h2>
+        <div className="grid grid-cols-3 gap-8 md:grid-cols-2 sm:grid-cols-1">
+          {features.map((f, i) => (
+            <div
+              key={"feature" + i}
+              className="flex rounded-xl hover:bg-slate-50 border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300"
             >
-              <div className="bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-14 py-4 rounded-lg">
-                <img src={github} className="h-8" />
-                <div className="text-lg text-white font-bold">
-                  See the source
-                </div>
+              <div className="bg-sky-600 w-1 rounded-l-xl" />
+              <div className="px-6 py-4 flex-1">
+                <div className="text-lg font-semibold text-slate-900 mb-2">{f.title}</div>
+                <div className="text-slate-600 text-sm">{f.content}</div>
               </div>
-            </a>
-            <a
-              className="inline-block"
-              href={socials.discord}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="bg-[#5865f2] hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-8 py-4 rounded-lg">
-                <img src={discord} className="h-8" />
-                <div className="text-lg text-white font-bold">
-                  Join us on Discord
-                </div>
-              </div>
-            </a>
-            <a
-              className="inline-block"
-              href={socials.twitter}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="text-white bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-12 py-4 rounded-lg">
-                <i className="text-2xl bi bi-twitter-x" />
-                <div className="text-lg  font-bold">Follow us on X</div>
-              </div>
-            </a>
-          </div>
+            </div>
+          ))}
         </div>
-      </div>
-
-      <div className="bg-red-700 py-1 text-center text-white text-xs font-semibold px-3">
-        Attention! The diagrams are saved in your browser. Before clearing the
-        browser make sure to back up your data.
-      </div>
-      <hr className="border-zinc-300" />
-      <div className="text-center text-sm py-3">
-        &copy; {new Date().getFullYear()} <strong>drawDB</strong> - All rights reserved.
       </div>
     </div>
   );
 }
+
+const features = [
+  {
+    title: "Export",
+    content:
+      "Export the DDL script to run on your database or export the diagram as a JSON or an image.",
+  },
+  {
+    title: "Reverse engineer",
+    content:
+      "Already have a schema? Import a DDL script to generate a diagram.",
+  },
+  {
+    title: "Customizable workspace",
+    content:
+      "Customize the UI to fit your preferences. Select the components you want in your view.",
+  },
+  {
+    title: "Keyboard shortcuts",
+    content:
+      "Speed up development with keyboard shortcuts. Access common editing functions instantly.",
+  },
+  {
+    title: "Templates",
+    content:
+      "Start off with pre-built templates. Get a quick start or get inspiration for your design.",
+  },
+  {
+    title: "Custom Templates",
+    content:
+      "Have boilerplate structures? Save time by saving them as templates and load them when needed.",
+  },
+  {
+    title: "Robust editor",
+    content:
+      "Undo, redo, copy, paste, duplicate and more. Add tables, subject areas, and notes.",
+  },
+  {
+    title: "Issue detection",
+    content:
+      "Detect and tackle errors in the diagram to make sure the scripts are correct.",
+  },
+  {
+    title: "Relational databases",
+    content:
+      "We support 5 relational databases - MySQL, PostgreSQL, SQLite, MariaDB, SQL Server.",
+  },
+  {
+    title: "Object-Relational databases",
+    content:
+      "Add custom types for object-relational databases, or create custom JSON schemes.",
+  },
+  {
+    title: "Presentation mode",
+    content:
+      "Present your diagrams on a big screen during team meetings and discussions.",
+  },
+  {
+    title: "Track todos",
+    content: "Keep track of tasks and mark them done when finished.",
+  },
+];
 
 const dbs = [
   { icon: mysql_icon, height: 80 },
@@ -314,128 +284,4 @@ const dbs = [
   { icon: mariadb_icon, height: 64 },
   { icon: sql_server_icon, height: 64 },
   { icon: oraclesql_icon, height: 172 },
-];
-
-const features = [
-  {
-    title: "Export",
-    content: (
-      <div>
-        Export the DDL script to run on your database or export the diagram as a
-        JSON or an image.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Reverse engineer",
-    content: (
-      <div>
-        Already have a schema? Import a DDL script to generate a diagram.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Customizable workspace",
-    content: (
-      <div>
-        Customize the UI to fit your preferences. Select the components you want
-        in your view.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Keyboard shortcuts",
-    content: (
-      <div>
-        Speed up development with keyboard shortcuts. See all available
-        shortcuts
-        <Link
-          to={`${socials.docs}/shortcuts`}
-          className="ms-1.5 text-blue-500 hover:underline"
-        >
-          here
-        </Link>
-        .
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Templates",
-    content: (
-      <div>
-        Start off with pre-built templates. Get a quick start or get inspiration
-        for your design.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Custom Templates",
-    content: (
-      <div>
-        Have boilerplate structures? Save time by saving them as templates and
-        load them when needed.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Robust editor",
-    content: (
-      <div>
-        Undo, redo, copy, paste, duplicate and more. Add tables, subject areas,
-        and notes.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Issue detection",
-    content: (
-      <div>
-        Detect and tackle errors in the diagram to make sure the scripts are
-        correct.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Relational databases",
-    content: (
-      <div>
-        We support 5 relational databases - MySQL, PostgreSQL, SQLite, MariaDB,
-        SQL Server.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Object-Relational databases",
-    content: (
-      <div>
-        Add custom types for object-relational databases, or create custom JSON
-        schemes.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Presentation mode",
-    content: (
-      <div>
-        Present your diagrams on a big screen during team meetings and
-        discussions.
-      </div>
-    ),
-    footer: "",
-  },
-  {
-    title: "Track todos",
-    content: <div>Keep track of tasks and mark them done when finished.</div>,
-    footer: "",
-  },
 ];
