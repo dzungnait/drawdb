@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "https://drawdb-server-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000";
 const API_GISTS_URL = `${API_BASE_URL}/gists`;
 
 /**

@@ -1,13 +1,74 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { listDesigns, del as deleteDesign } from "../api/gists";
+import { db } from "../data/db";
 import mysql_icon from "../assets/mysql.png";
 import postgres_icon from "../assets/postgres.png";
 import sqlite_icon from "../assets/sqlite.png";
 import mariadb_icon from "../assets/mariadb.png";
 import oraclesql_icon from "../assets/oraclesql.png";
 import sql_server_icon from "../assets/sql-server.png";
+
+const features = [
+  {
+    title: "Export",
+    content: "Export the DDL script to run on your database or export the diagram as a JSON or an image.",
+  },
+  {
+    title: "Reverse engineer",
+    content: "Already have a schema? Import a DDL script to generate a diagram.",
+  },
+  {
+    title: "Customizable workspace",
+    content: "Customize the UI to fit your preferences. Select the components you want in your view.",
+  },
+  {
+    title: "Keyboard shortcuts",
+    content: "Speed up development with keyboard shortcuts. Access common editing functions instantly.",
+  },
+  {
+    title: "Templates",
+    content: "Start off with pre-built templates. Get a quick start or get inspiration for your design.",
+  },
+  {
+    title: "Custom Templates",
+    content: "Have boilerplate structures? Save time by saving them as templates and load them when needed.",
+  },
+  {
+    title: "Robust editor",
+    content: "Undo, redo, copy, paste, duplicate and more. Add tables, subject areas, and notes.",
+  },
+  {
+    title: "Issue detection",
+    content: "Detect and tackle errors in the diagram to make sure the scripts are correct.",
+  },
+  {
+    title: "Relational databases",
+    content: "We support 5 relational databases - MySQL, PostgreSQL, SQLite, MariaDB, SQL Server.",
+  },
+  {
+    title: "Object-Relational databases",
+    content: "Add custom types for object-relational databases, or create custom JSON schemes.",
+  },
+  {
+    title: "Presentation mode",
+    content: "Present your diagrams on a big screen during team meetings and discussions.",
+  },
+  {
+    title: "Track todos",
+    content: "Keep track of tasks and mark them done when finished.",
+  },
+];
+
+const dbs = [
+  { icon: mysql_icon, height: 80 },
+  { icon: postgres_icon, height: 48 },
+  { icon: sqlite_icon, height: 64 },
+  { icon: mariadb_icon, height: 64 },
+  { icon: sql_server_icon, height: 64 },
+  { icon: oraclesql_icon, height: 172 },
+];
 
 export default function LandingPage() {
   const [designs, setDesigns] = useState([]);
@@ -21,18 +82,41 @@ export default function LandingPage() {
     document.body.setAttribute("theme-mode", "light");
     document.title = "drawDB | Online database diagram editor and SQL generator";
 
+    // Auto-clear IndexedDB data on mount for clean API data display
+    const clearIndexedDB = async () => {
+      try {
+        // Only clear table data, keep database structure intact
+        await Promise.all([
+          db.diagrams.clear(),
+          db.templates?.clear().catch(() => {}), // May not exist
+        ]);
+        console.log('🧹 Auto-cleared IndexedDB data for clean API data display');
+      } catch (err) {
+        console.warn('Failed to clear IndexedDB:', err);
+      }
+    };
+
+    clearIndexedDB();
+  }, []); // Only run once on mount
+
+  useEffect(() => {
     loadDesigns();
-  }, [page, search]);
+  }, [page, search]); // Load designs when page/search changes
 
   const loadDesigns = async () => {
     try {
       setLoading(true);
+      
+      // Load from API (IndexedDB already cleared)
       const response = await listDesigns(page, 12, search);
+      console.log('📡 Loaded from API:', response.data.length, 'designs');
       setDesigns(response.data);
       setTotal(response.pagination.total);
     } catch (error) {
-      console.error("Error loading designs:", error);
+      console.warn('❌ API failed:', error.message);
+      // Show empty state when API fails
       setDesigns([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -51,9 +135,11 @@ export default function LandingPage() {
     if (window.confirm("Are you sure you want to delete this design?")) {
       try {
         await deleteDesign(id);
+        console.log('🗑️ Deleted design from server:', id);
         loadDesigns(); // Reload list after delete
       } catch (error) {
         console.error("Error deleting design:", error);
+        alert("Failed to delete design. Please try again.");
       }
     }
   };
@@ -65,6 +151,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <Navbar />
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-12">
@@ -133,12 +220,12 @@ export default function LandingPage() {
                 
                 <div className="space-y-2 text-sm text-slate-600">
                   <div>📊 {design.tables?.length || 0} tables</div>
-                  <div>🔗 {design.relationships?.length || 0} relationships</div>
+                  <div>🔗 {(design.relationships || design.references)?.length || 0} relationships</div>
                 </div>
                 
                 <div className="mt-4 pt-4 border-t border-slate-200">
                   <p className="text-xs text-slate-500">
-                    Last modified: {new Date(design.last_modified || design.updated_at).toLocaleDateString()} {new Date(design.last_modified || design.updated_at).toLocaleTimeString()}
+                    Last modified: {new Date(design.lastModified || design.updated_at || design.last_modified).toLocaleDateString()} {new Date(design.lastModified || design.updated_at || design.last_modified).toLocaleTimeString()}
                   </p>
                 </div>
               </div>
@@ -214,74 +301,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-const features = [
-  {
-    title: "Export",
-    content:
-      "Export the DDL script to run on your database or export the diagram as a JSON or an image.",
-  },
-  {
-    title: "Reverse engineer",
-    content:
-      "Already have a schema? Import a DDL script to generate a diagram.",
-  },
-  {
-    title: "Customizable workspace",
-    content:
-      "Customize the UI to fit your preferences. Select the components you want in your view.",
-  },
-  {
-    title: "Keyboard shortcuts",
-    content:
-      "Speed up development with keyboard shortcuts. Access common editing functions instantly.",
-  },
-  {
-    title: "Templates",
-    content:
-      "Start off with pre-built templates. Get a quick start or get inspiration for your design.",
-  },
-  {
-    title: "Custom Templates",
-    content:
-      "Have boilerplate structures? Save time by saving them as templates and load them when needed.",
-  },
-  {
-    title: "Robust editor",
-    content:
-      "Undo, redo, copy, paste, duplicate and more. Add tables, subject areas, and notes.",
-  },
-  {
-    title: "Issue detection",
-    content:
-      "Detect and tackle errors in the diagram to make sure the scripts are correct.",
-  },
-  {
-    title: "Relational databases",
-    content:
-      "We support 5 relational databases - MySQL, PostgreSQL, SQLite, MariaDB, SQL Server.",
-  },
-  {
-    title: "Object-Relational databases",
-    content:
-      "Add custom types for object-relational databases, or create custom JSON schemes.",
-  },
-  {
-    title: "Presentation mode",
-    content:
-      "Present your diagrams on a big screen during team meetings and discussions.",
-  },
-  {
-    title: "Track todos",
-    content: "Keep track of tasks and mark them done when finished.",
-  },
-];
-
-const dbs = [
-  { icon: mysql_icon, height: 80 },
-  { icon: postgres_icon, height: 48 },
-  { icon: sqlite_icon, height: 64 },
-  { icon: mariadb_icon, height: 64 },
-  { icon: sql_server_icon, height: 64 },
-  { icon: oraclesql_icon, height: 172 },
-];

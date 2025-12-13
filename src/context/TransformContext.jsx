@@ -22,6 +22,11 @@ export default function TransformContextProvider({ children }) {
           actionOrValue = actionOrValue(prev);
         }
 
+        // If actionOrValue is null/undefined, use previous values
+        if (!actionOrValue || typeof actionOrValue !== "object") {
+          return prev;
+        }
+
         return {
           zoom: clamp(
             findFirstNumber(actionOrValue.zoom, prev.zoom, 1),
