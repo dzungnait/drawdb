@@ -149,7 +149,7 @@ export default function Modal({
               [],
           );
           window.name = `d ${diagram.id}`;
-          setSaveState(State.SAVING);
+          // setSaveState(State.SAVING); // Manual save only
         } else {
           window.name = "";
           Toast.error(t("didnt_find_diagram"));

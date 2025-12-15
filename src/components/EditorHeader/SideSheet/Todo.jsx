@@ -168,7 +168,7 @@ export default function Todo() {
                       checked={task.complete}
                       onChange={(e) => {
                         updateTask(i, { complete: e.target.checked });
-                        setSaveState(State.SAVING);
+                        // setSaveState(State.SAVING); // Manual save only
                       }}
                     ></Checkbox>
                   </Col>
@@ -177,7 +177,7 @@ export default function Todo() {
                       placeholder={t("title")}
                       onChange={(v) => updateTask(i, { title: v })}
                       value={task.title}
-                      onBlur={() => setSaveState(State.SAVING)}
+                      // onBlur={() => setSaveState(State.SAVING)} // Manual save only
                     />
                   </Col>
                   <Col span={3}>
@@ -190,7 +190,7 @@ export default function Todo() {
                           <RadioGroup
                             onChange={(e) => {
                               updateTask(i, { priority: e.target.value });
-                              setSaveState(State.SAVING);
+                              // setSaveState(State.SAVING); // Manual save only
                             }}
                             value={task.priority}
                             direction="vertical"
@@ -225,7 +225,7 @@ export default function Todo() {
                               setTasks((prev) =>
                                 prev.filter((_, j) => i !== j),
                               );
-                              setSaveState(State.SAVING);
+                              // setSaveState(State.SAVING); // Manual save only
                             }}
                           >
                             {t("delete")}
@@ -248,7 +248,7 @@ export default function Todo() {
                         placeholder={t("details")}
                         onChange={(v) => updateTask(i, { details: v })}
                         value={task.details}
-                        onBlur={() => setSaveState(State.SAVING)}
+                        // onBlur={() => setSaveState(State.SAVING)} // Manual save only
                       ></TextArea>
                     </Col>
                   </Row>

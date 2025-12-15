@@ -741,17 +741,15 @@ export default function WorkSpace() {
     save();
   }, [saveState, layout, save]);
 
-  // Auto-sync to server after save
-  useEffect(() => {
-    if (saveState !== State.SAVED) return;
-    if (!gistId) return; // Don't sync if design not on server yet
-
-    const syncTimer = setTimeout(() => {
-      syncToServer();
-    }, 500); // Debounce 500ms to avoid too many requests
-
-    return () => clearTimeout(syncTimer);
-  }, [saveState, gistId, syncToServer]);
+  // Bỏ auto-sync to server - chỉ manual sync
+  // useEffect(() => {
+  //   if (saveState !== State.SAVED) return;
+  //   if (!gistId) return;
+  //   const syncTimer = setTimeout(() => {
+  //     syncToServer();
+  //   }, 500);
+  //   return () => clearTimeout(syncTimer);
+  // }, [saveState, gistId, syncToServer]);
 
   useEffect(() => {
     document.title = "Editor | drawDB";

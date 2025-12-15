@@ -123,7 +123,7 @@ export default function TableInfo({ data }) {
             ),
           )
         }
-        afterChange={() => setSaveState(State.SAVING)}
+        // afterChange={() => setSaveState(State.SAVING)} // Manual save only
         renderItem={(item, i) => (
           <TableField
             data={item}
