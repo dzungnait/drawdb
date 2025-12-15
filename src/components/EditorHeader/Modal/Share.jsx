@@ -18,7 +18,7 @@ import { create, patch, del, SHARE_FILENAME } from "../../../api/gists";
 
 export default function Share({ title, setModal }) {
   const { t } = useTranslation();
-  const { gistId, setGistId } = useContext(IdContext);
+  const { gistId, setGistId, manualSave } = useContext(IdContext);
   const { sessionId } = useSaveState();
   const [loading, setLoading] = useState(true);
   const { tables, relationships, database } = useDiagram();
@@ -64,6 +64,12 @@ export default function Share({ title, setModal }) {
     const updateOrGenerateLink = async () => {
       try {
         setLoading(true);
+        
+        // Save trước khi share để đảm bảo latest data
+        if (manualSave) {
+          await manualSave();
+        }
+        
         const newGistId = gistId || "";
 
         if (!newGistId || newGistId === "") {

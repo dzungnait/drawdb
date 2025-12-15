@@ -523,7 +523,7 @@ export default function Canvas() {
     setDragging(notDragging);
 
     if (panning.isPanning && didPan()) {
-      setSaveState(State.SAVING);
+      // setSaveState(State.SAVING); // Let auto save handle this with 5s debounce
     }
     setPanning((old) => ({ ...old, isPanning: false }));
     pointer.setStyle("default");

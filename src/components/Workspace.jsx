@@ -723,6 +723,12 @@ export default function WorkSpace() {
     setVersion(null);
   };
 
+  // Manual save function - save ngay lập tức
+  const manualSave = useCallback(async () => {
+    setSaveState(State.SAVING);
+  }, [setSaveState]);
+
+  // Debounced auto save - chỉ save sau 5s không có action
   useEffect(() => {
     // Always allow saving if there's a title change or if there's actual content
     const hasContent = tables?.length > 0 ||
@@ -731,9 +737,14 @@ export default function WorkSpace() {
       types?.length > 0 ||
       tasks?.length > 0;
 
-    // Save if autosave is enabled and either has content or title exists
+    // Chỉ auto save nếu có content và autosave enabled
     if (settings.autosave && (hasContent || title)) {
-      setSaveState(State.SAVING);
+      // Debounce 5 giây - chỉ save khi user stop action trong 5s
+      const autoSaveTimer = setTimeout(() => {
+        setSaveState(State.SAVING);
+      }, 5000);
+
+      return () => clearTimeout(autoSaveTimer);
     }
   }, [
     undoStack,
@@ -797,7 +808,7 @@ export default function WorkSpace() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot }}>
+      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave }}>
         <ControlPanel
           diagramId={id}
           setDiagramId={setId}

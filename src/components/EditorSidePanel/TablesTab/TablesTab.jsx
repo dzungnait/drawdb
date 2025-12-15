@@ -63,7 +63,7 @@ export default function TablesTab() {
             keyPrefix="tables-tab"
             items={tables}
             onChange={(newTables) => setTables(newTables)}
-            afterChange={() => setSaveState(State.SAVING)}
+            // afterChange={() => setSaveState(State.SAVING)} // Let auto save handle this with 5s debounce
             renderItem={(item) => <TableListItem table={item} />}
           />
         </Collapse>

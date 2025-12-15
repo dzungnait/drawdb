@@ -434,7 +434,7 @@ export default function Note({ data, onPointerDown }) {
                       ...prev,
                       open: false,
                     }));
-                    setSaveState(State.SAVING);
+                    // setSaveState(State.SAVING); // Let auto save handle this with 5s debounce
                   }}
                   stopPropagation
                   content={
