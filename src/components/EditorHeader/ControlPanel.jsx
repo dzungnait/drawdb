@@ -755,8 +755,8 @@ export default function ControlPanel({
       // Fallback cho trường hợp chưa có manualSave
       setSaveState(State.SAVING);
     }
-    // Bỏ syncToServer() - chỉ save local, không sync server tự động
-    // syncToServer();
+    // Sync server khi manual save (save button hoặc Ctrl+S)
+    syncToServer();
   };
   const recentlyOpenedDiagrams = useLiveQuery(() =>
     db.diagrams.orderBy("lastModified").reverse().limit(10).toArray(),
