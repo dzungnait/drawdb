@@ -723,44 +723,15 @@ export default function WorkSpace() {
     setVersion(null);
   };
 
-  // Manual save function - save ngay lập tức
+  // Manual save function - chỉ save khi user action
   const manualSave = useCallback(async () => {
     setSaveState(State.SAVING);
   }, [setSaveState]);
 
-  // Debounced auto save - chỉ save sau 5s không có action
-  useEffect(() => {
-    // Always allow saving if there's a title change or if there's actual content
-    const hasContent = tables?.length > 0 ||
-      areas?.length > 0 ||
-      notes?.length > 0 ||
-      types?.length > 0 ||
-      tasks?.length > 0;
-
-    // Chỉ auto save nếu có content và autosave enabled
-    if (settings.autosave && (hasContent || title)) {
-      // Debounce 5 giây - chỉ save khi user stop action trong 5s
-      const autoSaveTimer = setTimeout(() => {
-        setSaveState(State.SAVING);
-      }, 5000);
-
-      return () => clearTimeout(autoSaveTimer);
-    }
-  }, [
-    undoStack,
-    redoStack,
-    settings.autosave,
-    tables?.length,
-    areas?.length,
-    notes?.length,
-    types?.length,
-    relationships?.length,
-    tasks?.length,
-    transform?.zoom || 1,
-    title,
-    gistId,
-    setSaveState,
-  ]);
+  // Bỏ auto save - chỉ manual save
+  // useEffect(() => {
+  //   // Auto save logic removed
+  // }, []);
 
   useEffect(() => {
     if (layout.readOnly) return;
