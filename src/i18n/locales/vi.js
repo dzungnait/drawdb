@@ -126,6 +126,7 @@ const vi = {
     this_will_appear_as_is: "*Điều này sẽ xuất hiện trong đoạn lệnh được tạo như hiện tại",
     comment: "Bình luận",
     add_field: "Thêm trường",
+    duplicate_field: "Sao chép trường",
     values: "Giá trị",
     size: "Kích cỡ",
     precision: "Độ chính xác",

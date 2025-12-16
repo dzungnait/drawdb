@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Action, ObjectType } from "../../../data/constants";
 import { Input, Button, Popover, Select } from "@douyinfe/semi-ui";
-import { IconMore, IconKeyStroked } from "@douyinfe/semi-icons";
+import { IconMore, IconKeyStroked, IconCopy } from "@douyinfe/semi-icons";
 import {
   useEnums,
   useDiagram,
@@ -13,9 +13,10 @@ import { useTranslation } from "react-i18next";
 import { dbToTypes } from "../../../data/datatypes";
 import { DragHandle } from "../../SortableList/DragHandle";
 import FieldDetails from "./FieldDetails";
+import { nanoid } from "nanoid";
 
 export default function TableField({ data, tid, index, inherited }) {
-  const { updateField } = useDiagram();
+  const { updateField, updateTable } = useDiagram();
   const { types } = useTypes();
   const { enums } = useEnums();
   const { layout } = useLayout();
@@ -209,6 +210,50 @@ export default function TableField({ data, tid, index, inherited }) {
             ]);
             setRedoStack([]);
             updateField(tid, data.id, { primary: !data.primary });
+          }}
+        />
+      </div>
+
+      <div>
+        <Button
+          title={t("duplicate_field")}
+          type="tertiary"
+          icon={<IconCopy />}
+          onClick={() => {
+            if (layout.readOnly) return;
+
+            const newFieldId = nanoid();
+            const newField = {
+              ...data,
+              id: newFieldId,
+              name: data.name ? `${data.name}_copy` : "field_copy",
+              primary: false, // Duplicate field should not be primary
+            };
+
+            setUndoStack((prev) => [
+              ...prev,
+              {
+                action: Action.EDIT,
+                element: ObjectType.TABLE,
+                component: "field_duplicate",
+                tid: tid,
+                fid: newFieldId,
+                message: t("edit_table", {
+                  tableName: table.name,
+                  extra: "[duplicate field]",
+                }),
+              },
+            ]);
+            setRedoStack([]);
+
+            // Insert the duplicate field right after the current field
+            const currentIndex = table.fields.findIndex(f => f.id === data.id);
+            const newFields = [...table.fields];
+            newFields.splice(currentIndex + 1, 0, newField);
+            
+            updateTable(tid, {
+              fields: newFields,
+            });
           }}
         />
       </div>

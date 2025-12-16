@@ -128,6 +128,7 @@ const en = {
     this_will_appear_as_is: "*This will appear in the generated script as is.",
     comment: "Comment",
     add_field: "Add field",
+    duplicate_field: "Duplicate field",
     values: "Values",
     size: "Size",
     precision: "Precision",
