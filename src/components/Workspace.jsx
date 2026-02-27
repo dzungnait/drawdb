@@ -857,10 +857,34 @@ export default function WorkSpace() {
         title={t("pick_db")}
         okText={t("confirm")}
         visible={showSelectDbModal}
-        onOk={() => {
+        onOk={async () => {
           if (selectedDb === "") return;
           setDatabase(selectedDb);
           setShowSelectDbModal(false);
+
+          // Tạo design trên server ngay lập tức — truyền PIN nếu có
+          const initialData = {
+            title: "Untitled Diagram",
+            tables: [],
+            relationships: [],
+            notes: [],
+            subjectAreas: [],
+            database: selectedDb,
+          };
+          try {
+            const result = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
+            const newId = result?.id ?? result;
+            setGistId(newId);
+            if (!newId.startsWith("local_")) {
+              const params = new URLSearchParams();
+              params.set("designId", newId);
+              setSearchParams(params, { replace: true });
+            }
+          } catch (e) {
+            console.error("Failed to create design on server:", e);
+          } finally {
+            setPendingDbPin("");
+          }
         }}
         okButtonProps={{ disabled: selectedDb === "" }}
       >
@@ -897,21 +921,21 @@ export default function WorkSpace() {
             </div>
           ))}
         </div>
-        {/* Optional PIN setup for new design */}
-        <div className="mt-6 border-t pt-4">
-          <label className="block text-sm font-medium mb-1">
-            🔒 PIN protection <span className="text-slate-400 font-normal">(optional)</span>
-          </label>
-          <input
-            type="password"
-            maxLength={20}
-            placeholder="Leave blank for no PIN"
-            value={pendingDbPin}
-            onChange={(e) => setPendingDbPin(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-          />
-          <p className="text-xs text-slate-400 mt-1">Anyone with the link will need this PIN to open the design.</p>
+        {/* PIN setup — luôn hiển thị, không bị ẩn bởi scroll */}
+        <div className="mt-4 pt-4 border-t border-slate-200 flex items-center gap-3">
+          <span className="text-lg shrink-0">🔒</span>
+          <div className="flex-1">
+            <input
+              type="password"
+              maxLength={20}
+              placeholder="Set a PIN (optional) — leave blank for no protection"
+              value={pendingDbPin}
+              onChange={(e) => setPendingDbPin(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+            />
+          </div>
         </div>
+        <p className="text-xs text-slate-400 mt-1 pl-8">Anyone with the link will need this PIN to open the design.</p>
       </Modal>
       {/* PIN Verification Modal */}
       <Modal
