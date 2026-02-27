@@ -202,10 +202,15 @@ export default function LandingPage() {
                 className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 cursor-pointer hover:shadow-lg hover:border-sky-300 transition-all duration-300 group"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900 group-hover:text-sky-600 truncate">
-                      {design.name || "Untitled Diagram"}
-                    </h3>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {design.pin_protected && (
+                        <span title="PIN protected" className="text-amber-500 shrink-0">🔒</span>
+                      )}
+                      <h3 className="text-lg font-semibold text-slate-900 group-hover:text-sky-600 truncate">
+                        {design.name || "Untitled Diagram"}
+                      </h3>
+                    </div>
                     <p className="text-sm text-slate-500 mt-1">
                       {design.database || "Generic"}
                     </p>

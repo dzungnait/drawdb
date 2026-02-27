@@ -26,7 +26,7 @@ import { useTranslation } from "react-i18next";
 import { databases } from "../data/databases";
 import { isRtl } from "../i18n/utils/rtl";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion } from "../api/gists";
+import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion, verifyPin } from "../api/gists";
 import { nanoid } from "nanoid";
 
 const SIDEPANEL_MIN_WIDTH = 384;
@@ -44,6 +44,13 @@ export default function WorkSpace() {
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedDb, setSelectedDb] = useState("");
   const [failedToLoadDesign, setFailedToLoadDesign] = useState(false);
+  // PIN states
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinModalDesignId, setPinModalDesignId] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pendingDbPin, setPendingDbPin] = useState("");
   const { layout, setLayout } = useLayout();
   const { settings } = useSettings();
   const { types, setTypes } = useTypes();
@@ -178,18 +185,19 @@ export default function WorkSpace() {
       transform: transform,
     };
 
-    const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData));
-    setGistId(newDesignId);
+    const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
+    const actualId = newDesignId?.id ?? newDesignId; // support both { id } shape and plain string
+    setGistId(actualId);
     
     // Only update URL with designId if it's not a local ID
-    if (!newDesignId.startsWith('local_')) {
+    if (!actualId.startsWith('local_')) {
       const params = new URLSearchParams();
-      params.set("designId", newDesignId);
+      params.set("designId", actualId);
       setSearchParams(params, { replace: true });
     }
     
-    return newDesignId;
-  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, setSearchParams, setGistId]);
+    return actualId;
+  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, pendingDbPin, setSearchParams, setGistId]);
 
   const syncToServer = useCallback(async () => {
     if (!sessionId) {
@@ -358,6 +366,14 @@ export default function WorkSpace() {
       }
     } catch (e) {
       console.error("Failed to load design from server:", e);
+      // 403 with requiresPin → show PIN verification modal instead of error redirect
+      if (e.response?.status === 403 && e.response?.data?.requiresPin) {
+        setPinModalDesignId(shareId);
+        setPinInput("");
+        setPinError("");
+        setShowPinModal(true);
+        return;
+      }
       setFailedToLoadDesign(true);
       Toast.error("Failed to load design. Design may have been deleted or link is invalid.");
       // Redirect to landing page after showing error
@@ -881,6 +897,68 @@ export default function WorkSpace() {
             </div>
           ))}
         </div>
+        {/* Optional PIN setup for new design */}
+        <div className="mt-6 border-t pt-4">
+          <label className="block text-sm font-medium mb-1">
+            🔒 PIN protection <span className="text-slate-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="password"
+            maxLength={20}
+            placeholder="Leave blank for no PIN"
+            value={pendingDbPin}
+            onChange={(e) => setPendingDbPin(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+          />
+          <p className="text-xs text-slate-400 mt-1">Anyone with the link will need this PIN to open the design.</p>
+        </div>
+      </Modal>
+      {/* PIN Verification Modal */}
+      <Modal
+        centered
+        size="small"
+        closable
+        title={<span>🔒 This design is PIN protected</span>}
+        okText={pinLoading ? "Verifying..." : "Unlock"}
+        cancelText="Cancel"
+        visible={showPinModal}
+        okButtonProps={{ disabled: pinInput.length === 0 || pinLoading }}
+        onOk={async () => {
+          if (!pinInput) return;
+          setPinLoading(true);
+          setPinError("");
+          try {
+            await verifyPin(pinModalDesignId, pinInput);
+            setShowPinModal(false);
+            setPinInput("");
+            // Retry loading the design now that we have the token
+            await loadFromGist(pinModalDesignId);
+          } catch (err) {
+            const msg = err.response?.data?.message || "Incorrect PIN. Please try again.";
+            setPinError(msg);
+          } finally {
+            setPinLoading(false);
+          }
+        }}
+        onCancel={() => {
+          setShowPinModal(false);
+          setPinInput("");
+          setPinError("");
+          navigate("/");
+        }}
+      >
+        <p className="text-sm text-slate-600 mb-3">Enter the PIN to access this design.</p>
+        <input
+          type="password"
+          maxLength={20}
+          autoFocus
+          placeholder="Enter PIN..."
+          value={pinInput}
+          onChange={(e) => { setPinInput(e.target.value); setPinError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && pinInput) e.currentTarget.closest("form")?.requestSubmit(); }}
+          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        {pinError && <p className="text-red-500 text-xs mt-2">{pinError}</p>}
       </Modal>
       <Modal
         visible={showRestoreModal}

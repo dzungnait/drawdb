@@ -6,16 +6,52 @@ export const VERSION_FILENAME = "versionned.json";
 const description = "drawDB diagram";
 const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "https://drawdb-server-production-524b.up.railway.app";
 
-export async function create(filename, content) {
+// ====== PIN TOKEN HELPERS ======
+// Tokens are stored per-design so each design has its own 24h access token
+
+const pinTokenKey = (designId) => `pin_token_${designId}`;
+
+export function getPinToken(designId) {
+  return localStorage.getItem(pinTokenKey(designId)) || null;
+}
+
+export function setPinToken(designId, token) {
+  localStorage.setItem(pinTokenKey(designId), token);
+}
+
+export function clearPinToken(designId) {
+  localStorage.removeItem(pinTokenKey(designId));
+}
+
+/** Returns axios headers with Authorization if a PIN token exists for this design */
+function getAuthHeaders(designId) {
+  if (!designId || (designId && designId.startsWith('local_'))) return {};
+  const token = getPinToken(designId);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Call POST /designs/:id/verify-pin, returns { success, token } */
+export async function verifyPin(designId, pin) {
+  const res = await axios.post(`${baseUrl}/designs/${designId}/verify-pin`, { pin });
+  if (res.data.success) {
+    setPinToken(designId, res.data.token);
+  }
+  return res.data;
+}
+
+export async function create(filename, content, pin = null) {
   try {
-    const res = await axios.post(`${baseUrl}/designs`, {
+    const body = {
       public: false,
       filename,
       description,
       content,
-    });
+    };
+    if (pin) body.pin = pin;
 
-    return res.data.data.id;
+    const res = await axios.post(`${baseUrl}/designs`, body);
+    const { id, pin_protected } = res.data.data;
+    return { id, pin_protected };
   } catch (error) {
     // Fallback to local storage when backend is not available
     console.warn("Backend not available, falling back to local storage:", error.message);
@@ -34,7 +70,7 @@ export async function create(filename, content) {
     localStorage.setItem('local_designs', JSON.stringify(existingData));
     
     console.log("Saved to local storage with ID:", localId);
-    return localId;
+    return { id: localId, pin_protected: false };
   }
 }
 
@@ -77,7 +113,9 @@ export async function patch(gistId, filename, content, version = undefined, last
       payload.lastModifiedBy = lastModifiedBy;
     }
 
-    const { data } = await axios.patch(`${baseUrl}/designs/${gistId}`, payload);
+    const { data } = await axios.patch(`${baseUrl}/designs/${gistId}`, payload, {
+      headers: getAuthHeaders(gistId),
+    });
 
     return { 
       deleted: data.deleted || false,
@@ -105,7 +143,9 @@ export async function getCurrentVersion(gistId) {
   }
 
   try {
-    const { data } = await axios.get(`${baseUrl}/designs/${gistId}`);
+    const { data } = await axios.get(`${baseUrl}/designs/${gistId}`, {
+      headers: getAuthHeaders(gistId),
+    });
     // Extract version from the snapshot data
     return {
       version: data.data?.files?.['share.json']?.version || 1,
@@ -131,7 +171,9 @@ export async function del(gistId) {
 
   // Try server
   try {
-    await axios.delete(`${baseUrl}/designs/${gistId}`);
+    await axios.delete(`${baseUrl}/designs/${gistId}`, {
+      headers: getAuthHeaders(gistId),
+    });
   } catch (error) {
     console.error("Failed to delete from server:", error);
     throw error;
@@ -162,7 +204,9 @@ export async function get(gistId) {
 
   // Try server
   try {
-    const res = await axios.get(`${baseUrl}/designs/${gistId}`);
+    const res = await axios.get(`${baseUrl}/designs/${gistId}`, {
+      headers: getAuthHeaders(gistId),
+    });
     return res.data;
   } catch (error) {
     console.error("Failed to get from server:", error);
@@ -276,8 +320,8 @@ export async function createSnapshot(gistId, comment = '') {
   }
 
   try {
-    const { data } = await axios.post(`${baseUrl}/designs/${gistId}/snapshot`, {
-      comment
+    const { data } = await axios.post(`${baseUrl}/designs/${gistId}/snapshot`, { comment }, {
+      headers: getAuthHeaders(gistId),
     });
     return data;
   } catch (error) {
@@ -298,7 +342,9 @@ export async function getVersions(gistId) {
   console.log("API URL:", `${baseUrl}/designs/${gistId}/versions`);
 
   try {
-    const { data } = await axios.get(`${baseUrl}/designs/${gistId}/versions`);
+    const { data } = await axios.get(`${baseUrl}/designs/${gistId}/versions`, {
+      headers: getAuthHeaders(gistId),
+    });
     console.log("Raw API response:", data);
     return { data: data.data || [] };
   } catch (error) {

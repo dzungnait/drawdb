@@ -73,8 +73,9 @@ export default function Share({ title, setModal }) {
         const newGistId = gistId || "";
 
         if (!newGistId || newGistId === "") {
-          // Create new share
-          const id = await create(SHARE_FILENAME, diagramToString());
+          // Create new share (no PIN for share copies)
+          const result = await create(SHARE_FILENAME, diagramToString());
+          const id = result?.id ?? result; // create() returns { id } shape
           setGistId(id);
         } else {
           // Update existing share
