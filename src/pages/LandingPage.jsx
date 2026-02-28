@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { listDesigns, del as deleteDesign } from "../api/gists";
+import { listDesigns, del as deleteDesign, verifyPin } from "../api/gists";
 import { db } from "../data/db";
 import mysql_icon from "../assets/mysql.png";
 import postgres_icon from "../assets/postgres.png";
@@ -78,6 +78,13 @@ export default function LandingPage() {
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
 
+  // Delete-with-PIN states
+  const [showDeletePinModal, setShowDeletePinModal] = useState(false);
+  const [deletePinTarget, setDeletePinTarget] = useState(null); // { id, name }
+  const [deletePinInput, setDeletePinInput] = useState("");
+  const [deletePinError, setDeletePinError] = useState("");
+  const [deletePinLoading, setDeletePinLoading] = useState(false);
+
   useEffect(() => {
     document.body.setAttribute("theme-mode", "light");
     document.title = "drawDB | Online database diagram editor and SQL generator";
@@ -130,17 +137,44 @@ export default function LandingPage() {
     navigate(`/editor?designId=${id}`);
   };
 
-  const handleDeleteDesign = async (e, id) => {
+  const handleDeleteDesign = async (e, design) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this design?")) {
-      try {
-        await deleteDesign(id);
-        console.log('🗑️ Deleted design from server:', id);
-        loadDesigns(); // Reload list after delete
-      } catch (error) {
-        console.error("Error deleting design:", error);
-        alert("Failed to delete design. Please try again.");
-      }
+
+    // PIN-protected: luôn yêu cầu nhập PIN trước khi xoá
+    if (design.pin_protected) {
+      setDeletePinTarget({ id: design.id, name: design.name });
+      setDeletePinInput("");
+      setDeletePinError("");
+      setShowDeletePinModal(true);
+      return;
+    }
+
+    if (!window.confirm(`Delete "${design.name || "Untitled Diagram"}"? This cannot be undone.`)) return;
+    try {
+      await deleteDesign(design.id);
+      loadDesigns();
+    } catch (error) {
+      console.error("Error deleting design:", error);
+      alert("Failed to delete design. Please try again.");
+    }
+  };
+
+  const confirmDeleteWithPin = async () => {
+    if (!deletePinInput || !deletePinTarget) return;
+    setDeletePinLoading(true);
+    setDeletePinError("");
+    try {
+      await verifyPin(deletePinTarget.id, deletePinInput);
+      setShowDeletePinModal(false);
+      setDeletePinInput("");
+      // Sau khi verify thành công, thực hiện xoá
+      await deleteDesign(deletePinTarget.id);
+      loadDesigns();
+    } catch (err) {
+      const msg = err.response?.data?.message || "Incorrect PIN. Please try again.";
+      setDeletePinError(msg);
+    } finally {
+      setDeletePinLoading(false);
     }
   };
 
@@ -216,7 +250,7 @@ export default function LandingPage() {
                     </p>
                   </div>
                   <button
-                    onClick={(e) => handleDeleteDesign(e, design.id)}
+                    onClick={(e) => handleDeleteDesign(e, design)}
                     className="ml-2 px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm"
                   >
                     ✕
@@ -303,6 +337,48 @@ export default function LandingPage() {
           ))}
         </div>
       </div>
+
+      {/* Delete PIN verification modal */}
+      {showDeletePinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-2xl">🔒</span>
+              <h2 className="text-lg font-semibold text-slate-900">PIN required to delete</h2>
+            </div>
+            <p className="text-sm text-slate-600 mb-1">
+              Enter the PIN for <span className="font-medium">"{deletePinTarget?.name || "Untitled Diagram"}"</span> to confirm deletion.
+            </p>
+            <p className="text-xs text-red-500 mb-4">This action cannot be undone.</p>
+            <input
+              type="password"
+              maxLength={20}
+              autoFocus
+              placeholder="Enter PIN..."
+              value={deletePinInput}
+              onChange={(e) => { setDeletePinInput(e.target.value); setDeletePinError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && deletePinInput && confirmDeleteWithPin()}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-2"
+            />
+            {deletePinError && <p className="text-red-500 text-xs mb-3">{deletePinError}</p>}
+            <div className="flex gap-2 justify-end mt-2">
+              <button
+                onClick={() => { setShowDeletePinModal(false); setDeletePinInput(""); setDeletePinError(""); }}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!deletePinInput || deletePinLoading}
+                onClick={confirmDeleteWithPin}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletePinLoading ? "Verifying..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
