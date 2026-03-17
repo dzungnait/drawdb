@@ -4,7 +4,7 @@ export const SHARE_FILENAME = "share.json";
 export const VERSION_FILENAME = "versionned.json";
 
 const description = "drawDB diagram";
-const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "https://drawdb-server-production-524b.up.railway.app";
+const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "https://drawdb-server-production.up.railway.app";
 
 // ====== PIN TOKEN HELPERS ======
 // Tokens are stored per-design so each design has its own 24h access token
