@@ -47,10 +47,12 @@ import { sd, sindhi } from "./locales/sd";
 import { th, thai } from "./locales/th";
 import { as, assamese } from "./locales/as";
 import { bg, bulgarian } from "./locales/bg";
-
 import { ms, malay } from "./locales/ms";
 import { mn, mongolian } from "./locales/mn";
+import { tl,filipino } from "./locales/tl";
 import { sw, swahili } from "./locales/sw";
+import { fi, finnish } from "./locales/fi";
+
 
 export const languages = [
   english,
@@ -101,7 +103,9 @@ export const languages = [
   thai,
   malay,
   mongolian,
+  filipino,
   swahili,
+  finnish,
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 i18n
@@ -162,7 +166,9 @@ i18n
       bg,
       ms,
       mn,
+      tl,
       sw,
+      fi,
     },
   });
 
