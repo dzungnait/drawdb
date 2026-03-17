@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useState, useMemo, useRef } from "react";
 import { IdContext } from "../../../context/IdContext";
 import { useTranslation } from "react-i18next";
-import { Button, Spin, Steps, Tag, Toast } from "@douyinfe/semi-ui";
+import { Button, Spin, Steps, Tag, Toast, Tooltip } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import {
   create,
@@ -25,6 +25,8 @@ import {
 } from "../../../hooks";
 import { databases } from "../../../data/databases";
 import { loadCache, saveCache } from "../../../utils/cache";
+import Migration from "./Migration";
+import { DB } from "../../../data/constants";
 
 const LIMIT = 10;
 
@@ -46,6 +48,8 @@ export default function Versions({ open, title, setTitle }) {
   const [isRecording, setIsRecording] = useState(false);
   const [loadingVersion, setLoadingVersion] = useState(null);
   const isLoadingRef = useRef(false);
+  const [selectedVersion, setSelectedVersion] = useState(null);
+  const [versionToCompareTo, setVersionToCompareTo] = useState(null);
 
   const cacheRef = useMemo(() => loadCache(), []);
 
@@ -304,6 +308,35 @@ export default function Versions({ open, title, setTitle }) {
     }
   };
 
+  const getVersionToCompareTo = useCallback(async () => {
+    if (!selectedVersion) return null;
+
+    const currentIndex = versions.findIndex(
+      (v) => v.version === selectedVersion,
+    );
+
+    if (currentIndex === -1) return null;
+
+    if (currentIndex === versions.length - 1 && hasMore) {
+      const res = await getCommitsWithFile(gistId, VERSION_FILENAME, 1, cursor);
+      const version = res.data.length ? res.data[0].version : "null";
+
+      if (version === selectedVersion) return null;
+
+      return version;
+    } else {
+      return versions[currentIndex + 1]?.version || "null";
+    }
+  }, [selectedVersion, versions, gistId, cursor, hasMore]);
+
+  useEffect(() => {
+    const getVersionToCompare = async () => {
+      const versionToCompare = await getVersionToCompareTo();
+      setVersionToCompareTo(versionToCompare);
+    };
+    getVersionToCompare();
+  }, [selectedVersion, getVersionToCompareTo]);
+
   useEffect(() => {
     if (gistId && open) {
       // Debounce the call to avoid spam
@@ -343,19 +376,45 @@ export default function Versions({ open, title, setTitle }) {
         <div className="my-3">{t("no_saved_versions")}</div>
       )}
       {gistId && (
-        <div className="my-3 overflow-y-auto">
+        <div className="my-2 overflow-y-auto">
           <Steps direction="vertical" type="basic" current={currentStep}>
             {versions.map((r) => (
               <Steps.Step
                 key={r.version_number || r.version}
                 onClick={() => loadVersion(r.version_number || r.version)}
-                className="group"
+                className="group hover-1 first:!pt-2"
                 title={
                   <div className="flex justify-between items-center w-full">
                     <Tag>{r.version_name || `Version ${r.version_number || r.version}`}</Tag>
-                    <span className="text-xs hidden group-hover:inline-block">
-                      {t("click_to_view")}
-                    </span>
+                    {database === DB.GENERIC ? (
+                      <Tooltip content={t("migration_not_supported_generic")}>
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          className="!text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVersion(r.version_number || r.version);
+                          }}
+                          disabled={database === DB.GENERIC}
+                        >
+                          {t("generate_migration")}
+                        </Button>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        className="!text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVersion(r.version_number || r.version);
+                        }}
+                        disabled={database === DB.GENERIC}
+                      >
+                        {t("generate_migration")}
+                      </Button>
+                    )}
                   </div>
                 }
                 description={`${t("commited_at")} ${DateTime.fromISO(
@@ -386,6 +445,13 @@ export default function Versions({ open, title, setTitle }) {
           <Button onClick={() => getRevisions(cursor)}>{t("load_more")}</Button>
         </div>
       )}
+
+      <Migration
+        gistId={gistId}
+        selectedVersion={selectedVersion}
+        versionToCompareTo={versionToCompareTo || ""}
+        setSelectedVersion={setSelectedVersion}
+      />
     </div>
   );
 }

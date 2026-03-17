@@ -5,13 +5,8 @@ export const TasksContext = createContext(null);
 export default function TasksContextProvider({ children }) {
   const [tasks, setTasks] = useState([]);
 
-  const updateTask = (id, values) =>
-    setTasks((prev) =>
-      prev.map((task, i) => (id === i ? { ...task, ...values } : task))
-    );
-
   return (
-    <TasksContext.Provider value={{ tasks, setTasks, updateTask }}>
+    <TasksContext.Provider value={{ tasks, setTasks }}>
       {children}
     </TasksContext.Provider>
   );

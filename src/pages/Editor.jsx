@@ -6,9 +6,9 @@ import SelectContextProvider from "../context/SelectContext";
 import AreasContextProvider from "../context/AreasContext";
 import NotesContextProvider from "../context/NotesContext";
 import TypesContextProvider from "../context/TypesContext";
-import TasksContextProvider from "../context/TasksContext";
 import SaveStateContextProvider from "../context/SaveStateContext";
 import EnumsContextProvider from "../context/EnumsContext";
+import TasksContextProvider from "../context/TasksContext";
 import WorkSpace from "../components/Workspace";
 import { useThemedPage } from "../hooks";
 
@@ -20,21 +20,21 @@ export default function Editor() {
       <LayoutContextProvider>
         <UndoRedoContextProvider>
           <SelectContextProvider>
-            <TasksContextProvider>
-              <AreasContextProvider>
-                <NotesContextProvider>
-                  <TypesContextProvider>
-                    <EnumsContextProvider>
-                      <TablesContextProvider>
+            <AreasContextProvider>
+              <NotesContextProvider>
+                <TypesContextProvider>
+                  <EnumsContextProvider>
+                    <TablesContextProvider>
+                      <TasksContextProvider>
                         <SaveStateContextProvider>
                           <WorkSpace />
                         </SaveStateContextProvider>
-                      </TablesContextProvider>
-                    </EnumsContextProvider>
-                  </TypesContextProvider>
-                </NotesContextProvider>
-              </AreasContextProvider>
-            </TasksContextProvider>
+                      </TasksContextProvider>
+                    </TablesContextProvider>
+                  </EnumsContextProvider>
+                </TypesContextProvider>
+              </NotesContextProvider>
+            </AreasContextProvider>
           </SelectContextProvider>
         </UndoRedoContextProvider>
       </LayoutContextProvider>
