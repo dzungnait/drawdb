@@ -349,9 +349,9 @@ export default function WorkSpace() {
       }
       if (databases[parsedDiagram.database].hasEnums) {
         setEnums(
-          parsedDiagram.enums.map((e) =>
+          (parsedDiagram.enums ?? []).map((e) =>
             !e.id ? { ...e, id: nanoid() } : e,
-          ) ?? [],
+          ),
         );
       }
       setSaveState(State.SAVED);
@@ -870,6 +870,8 @@ export default function WorkSpace() {
             notes: [],
             subjectAreas: [],
             database: selectedDb,
+            ...(databases[selectedDb]?.hasTypes && { types: [] }),
+            ...(databases[selectedDb]?.hasEnums && { enums: [] }),
           };
           try {
             const result = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
