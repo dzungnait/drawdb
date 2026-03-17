@@ -1906,8 +1906,8 @@ export default function ControlPanel({
               >
                 <span>
                   {(window.name.split(" ")[0] === "t"
-                    ? "Templates/"
-                    : "Diagrams/") + title}
+                    ? "Templates: "
+                    : "Diagrams: ") + <b>{title}</b>}
                 </span>
                 {version && (
                   <Tag className="mt-1" color="blue" size="small">
