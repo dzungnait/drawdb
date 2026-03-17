@@ -129,7 +129,7 @@ export default function ControlPanel({
   const { selectedElement, setSelectedElement } = useSelect();
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
-  const { version, gistId, setGistId, syncToServer, createManualSnapshot } = useContext(IdContext);
+  const { version, gistId, setGistId, syncToServer, createManualSnapshot, manualSave } = useContext(IdContext);
   const navigate = useNavigate();
 
   const invertLayout = (component) =>
@@ -747,7 +747,14 @@ export default function ControlPanel({
     setLayout((prev) => ({ ...prev, dbmlEditor: !prev.dbmlEditor }));
   };
   const save = () => {
-    setSaveState(State.SAVING);
+    // Sử dụng manualSave để save ngay lập tức khi user bấm save button
+    if (manualSave) {
+      manualSave();
+    } else {
+      // Fallback cho trường hợp chưa có manualSave
+      setSaveState(State.SAVING);
+    }
+    // Sync server khi manual save (save button hoặc Ctrl+S)
     syncToServer();
   };
   const recentlyOpenedDiagrams = useLiveQuery(() =>
@@ -1914,8 +1921,8 @@ export default function ControlPanel({
               >
                 <span>
                   {(window.name.split(" ")[0] === "t"
-                    ? "Templates/"
-                    : "Diagrams/") + title}
+                    ? "Templates: "
+                    : "Diagrams: ") + title}
                 </span>
                 {version && (
                   <Tag className="mt-1" color="blue" size="small">

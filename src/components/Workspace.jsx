@@ -26,7 +26,7 @@ import { useTranslation } from "react-i18next";
 import { databases } from "../data/databases";
 import { isRtl } from "../i18n/utils/rtl";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion } from "../api/gists";
+import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion, verifyPin } from "../api/gists";
 import { nanoid } from "nanoid";
 
 const SIDEPANEL_MIN_WIDTH = 384;
@@ -44,6 +44,13 @@ export default function WorkSpace() {
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [selectedDb, setSelectedDb] = useState("");
   const [failedToLoadDesign, setFailedToLoadDesign] = useState(false);
+  // PIN states
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinModalDesignId, setPinModalDesignId] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pendingDbPin, setPendingDbPin] = useState("");
   const { layout, setLayout } = useLayout();
   const { settings } = useSettings();
   const { types, setTypes } = useTypes();
@@ -94,10 +101,11 @@ export default function WorkSpace() {
     };
 
       if (saveAsDiagram) {
-        if (searchParams.has("shareId")) {
-          searchParams.delete("shareId");
-          setSearchParams(searchParams, { replace: true });
-        }
+        // Không xoá shareId khỏi URL để maintain shared link
+        // if (searchParams.has("shareId")) {
+        //   searchParams.delete("shareId");
+        //   setSearchParams(searchParams, { replace: true });
+        // }
 
         if ((id === 0 && window.name === "") || op === "lt") {
           await db.diagrams
@@ -177,18 +185,19 @@ export default function WorkSpace() {
       transform: transform,
     };
 
-    const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData));
-    setGistId(newDesignId);
+    const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
+    const actualId = newDesignId?.id ?? newDesignId; // support both { id } shape and plain string
+    setGistId(actualId);
     
     // Only update URL with designId if it's not a local ID
-    if (!newDesignId.startsWith('local_')) {
+    if (!actualId.startsWith('local_')) {
       const params = new URLSearchParams();
-      params.set("designId", newDesignId);
+      params.set("designId", actualId);
       setSearchParams(params, { replace: true });
     }
     
-    return newDesignId;
-  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, setSearchParams, setGistId]);
+    return actualId;
+  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, pendingDbPin, setSearchParams, setGistId]);
 
   const syncToServer = useCallback(async () => {
     if (!sessionId) {
@@ -340,15 +349,31 @@ export default function WorkSpace() {
       }
       if (databases[parsedDiagram.database].hasEnums) {
         setEnums(
-          parsedDiagram.enums.map((e) =>
+          (parsedDiagram.enums ?? []).map((e) =>
             !e.id ? { ...e, id: nanoid() } : e,
-          ) ?? [],
+          ),
         );
       }
       setSaveState(State.SAVED);
       setFailedToLoadDesign(false);
+      
+      // Update URL để persist shareId
+      const currentShareId = new URLSearchParams(window.location.search).get("shareId");
+      if (shareId && !currentShareId) {
+        const params = new URLSearchParams();
+        params.set("shareId", shareId);
+        window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      }
     } catch (e) {
       console.error("Failed to load design from server:", e);
+      // 403 with requiresPin → show PIN verification modal instead of error redirect
+      if (e.response?.status === 403 && e.response?.data?.requiresPin) {
+        setPinModalDesignId(shareId);
+        setPinInput("");
+        setPinError("");
+        setShowPinModal(true);
+        return;
+      }
       setFailedToLoadDesign(true);
       Toast.error("Failed to load design. Design may have been deleted or link is invalid.");
       // Redirect to landing page after showing error
@@ -361,6 +386,8 @@ export default function WorkSpace() {
   const initializeEditor = useCallback(async () => {
     const shareId = searchParams.get("shareId");
     const designId = searchParams.get("designId");
+    
+    console.log("initializeEditor called with:", { shareId, designId });
     
     // If we already tried to load and failed, don't retry
     if (failedToLoadDesign) {
@@ -484,7 +511,12 @@ export default function WorkSpace() {
             window.name = `d ${d.id}`;
           } else {
             window.name = "";
-            if (selectedDb === "") setShowSelectDbModal(true);
+            // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+            const shareId = searchParams.get("shareId");
+            const designId = searchParams.get("designId");
+            if (selectedDb === "" && !shareId && !designId) {
+              setShowSelectDbModal(true);
+            }
           }
         })
         .catch((error) => {
@@ -611,12 +643,18 @@ export default function WorkSpace() {
               );
             }
           } else {
-            if (selectedDb === "") setShowSelectDbModal(true);
+            // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+            if (selectedDb === "" && !searchParams.get("shareId") && !searchParams.get("designId")) {
+              setShowSelectDbModal(true);
+            }
           }
         })
         .catch((error) => {
           console.log(error);
-          if (selectedDb === "") setShowSelectDbModal(true);
+          // Chỉ hiện modal chọn DB nếu không có shareId hoặc designId
+          if (selectedDb === "" && !searchParams.get("shareId") && !searchParams.get("designId")) {
+            setShowSelectDbModal(true);
+          }
         });
     };
 
@@ -729,6 +767,11 @@ export default function WorkSpace() {
     setSaveState,
   ]);
 
+  // Manual save function - chỉ save khi user action
+  const manualSave = useCallback(async () => {
+    setSaveState(State.SAVING);
+  }, [setSaveState]);
+
   useEffect(() => {
     if (layout.readOnly) return;
 
@@ -737,26 +780,24 @@ export default function WorkSpace() {
     save();
   }, [saveState, layout, save]);
 
-  // Auto-sync to server after save
-  useEffect(() => {
-    if (saveState !== State.SAVED) return;
-    if (!gistId) return; // Don't sync if design not on server yet
-
-    const syncTimer = setTimeout(() => {
-      syncToServer();
-    }, 500); // Debounce 500ms to avoid too many requests
-
-    return () => clearTimeout(syncTimer);
-  }, [saveState, gistId, syncToServer]);
+  // Bỏ auto-sync to server - chỉ manual sync
+  // useEffect(() => {
+  //   if (saveState !== State.SAVED) return;
+  //   if (!gistId) return;
+  //   const syncTimer = setTimeout(() => {
+  //     syncToServer();
+  //   }, 500);
+  //   return () => clearTimeout(syncTimer);
+  // }, [saveState, gistId, syncToServer]);
 
   useEffect(() => {
     document.title = "Editor | drawDB";
   }, []);
 
-  // Initialize editor when URL changes
+  // Initialize editor when URL changes or component mounts
   useEffect(() => {
     initializeEditor();
-  }, [searchParams]); // Run when URL params change
+  }, [initializeEditor]); // Run when URL params change or component mounts
 
   // Heartbeat - keep lock alive every 5 minutes
   useEffect(() => {
@@ -775,7 +816,7 @@ export default function WorkSpace() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot }}>
+      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave }}>
         <ControlPanel
           diagramId={id}
           setDiagramId={setId}
@@ -839,10 +880,36 @@ export default function WorkSpace() {
         title={t("pick_db")}
         okText={t("confirm")}
         visible={showSelectDbModal}
-        onOk={() => {
+        onOk={async () => {
           if (selectedDb === "") return;
           setDatabase(selectedDb);
           setShowSelectDbModal(false);
+
+          // Tạo design trên server ngay lập tức — truyền PIN nếu có
+          const initialData = {
+            title: "Untitled Diagram",
+            tables: [],
+            relationships: [],
+            notes: [],
+            subjectAreas: [],
+            database: selectedDb,
+            ...(databases[selectedDb]?.hasTypes && { types: [] }),
+            ...(databases[selectedDb]?.hasEnums && { enums: [] }),
+          };
+          try {
+            const result = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
+            const newId = result?.id ?? result;
+            setGistId(newId);
+            if (!newId.startsWith("local_")) {
+              const params = new URLSearchParams();
+              params.set("designId", newId);
+              setSearchParams(params, { replace: true });
+            }
+          } catch (e) {
+            console.error("Failed to create design on server:", e);
+          } finally {
+            setPendingDbPin("");
+          }
         }}
         okButtonProps={{ disabled: selectedDb === "" }}
       >
@@ -879,6 +946,68 @@ export default function WorkSpace() {
             </div>
           ))}
         </div>
+        {/* PIN setup — luôn hiển thị, không bị ẩn bởi scroll */}
+        <div className="mt-4 pt-4 border-t border-slate-200 flex items-center gap-3">
+          <span className="text-lg shrink-0">🔒</span>
+          <div className="flex-1">
+            <input
+              type="password"
+              maxLength={20}
+              placeholder="Set a PIN (optional) — leave blank for no protection"
+              value={pendingDbPin}
+              onChange={(e) => setPendingDbPin(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 mt-1 pl-8">Anyone with the link will need this PIN to open the design.</p>
+      </Modal>
+      {/* PIN Verification Modal */}
+      <Modal
+        centered
+        size="small"
+        closable
+        title={<span>🔒 This design is PIN protected</span>}
+        okText={pinLoading ? "Verifying..." : "Unlock"}
+        cancelText="Cancel"
+        visible={showPinModal}
+        okButtonProps={{ disabled: pinInput.length === 0 || pinLoading }}
+        onOk={async () => {
+          if (!pinInput) return;
+          setPinLoading(true);
+          setPinError("");
+          try {
+            await verifyPin(pinModalDesignId, pinInput);
+            setShowPinModal(false);
+            setPinInput("");
+            // Retry loading the design now that we have the token
+            await loadFromGist(pinModalDesignId);
+          } catch (err) {
+            const msg = err.response?.data?.message || "Incorrect PIN. Please try again.";
+            setPinError(msg);
+          } finally {
+            setPinLoading(false);
+          }
+        }}
+        onCancel={() => {
+          setShowPinModal(false);
+          setPinInput("");
+          setPinError("");
+          navigate("/");
+        }}
+      >
+        <p className="text-sm text-slate-600 mb-3">Enter the PIN to access this design.</p>
+        <input
+          type="password"
+          maxLength={20}
+          autoFocus
+          placeholder="Enter PIN..."
+          value={pinInput}
+          onChange={(e) => { setPinInput(e.target.value); setPinError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && pinInput) e.currentTarget.closest("form")?.requestSubmit(); }}
+          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+        />
+        {pinError && <p className="text-red-500 text-xs mt-2">{pinError}</p>}
       </Modal>
       <Modal
         visible={showRestoreModal}

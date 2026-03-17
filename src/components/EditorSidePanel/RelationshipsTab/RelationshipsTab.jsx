@@ -47,7 +47,7 @@ export default function RelationshipsTab() {
             keyPrefix="relationships-tab"
             items={relationships}
             onChange={(newRelationships) => setRelationships(newRelationships)}
-            afterChange={() => setSaveState(State.SAVING)}
+            // afterChange={() => setSaveState(State.SAVING)} // Manual save only
             renderItem={(item) => (
               <div id={`scroll_ref_${item.id}`} key={"relationship_" + item.id}>
                 <Collapse.Panel

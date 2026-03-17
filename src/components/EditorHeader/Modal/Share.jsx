@@ -18,7 +18,7 @@ import { create, patch, del, SHARE_FILENAME } from "../../../api/gists";
 
 export default function Share({ title, setModal }) {
   const { t } = useTranslation();
-  const { gistId, setGistId } = useContext(IdContext);
+  const { gistId, setGistId, manualSave } = useContext(IdContext);
   const { sessionId } = useSaveState();
   const [loading, setLoading] = useState(true);
   const { tables, relationships, database } = useDiagram();
@@ -56,25 +56,26 @@ export default function Share({ title, setModal }) {
   ]);
 
   const unshare = useCallback(async () => {
-    try {
-      await del(gistId);
-      setGistId("");
-      setModal(MODAL.NONE);
-    } catch (e) {
-      console.error(e);
-      setError(e);
-    }
-  }, [gistId, setModal, setGistId]);
+    // Chỉ đóng popup, không xoá database
+    setModal(MODAL.NONE);
+  }, [setModal]);
 
   useEffect(() => {
     const updateOrGenerateLink = async () => {
       try {
         setLoading(true);
+        
+        // Save trước khi share để đảm bảo latest data
+        if (manualSave) {
+          await manualSave();
+        }
+        
         const newGistId = gistId || "";
 
         if (!newGistId || newGistId === "") {
-          // Create new share
-          const id = await create(SHARE_FILENAME, diagramToString());
+          // Create new share (no PIN for share copies)
+          const result = await create(SHARE_FILENAME, diagramToString());
+          const id = result?.id ?? result; // create() returns { id } shape
           setGistId(id);
         } else {
           // Update existing share

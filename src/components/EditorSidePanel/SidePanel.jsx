@@ -93,7 +93,7 @@ export default function SidePanel({ width, resize, setResize }) {
   return (
     <div className="flex h-full">
       <div
-        className="flex flex-col h-full relative border-r border-color"
+        className="flex flex-col h-full relative border-r border-color min-w-[420px]"
         style={{ width: `${width}px` }}
       >
         <div className="h-full flex-1 overflow-y-auto">

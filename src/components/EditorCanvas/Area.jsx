@@ -126,7 +126,7 @@ export default function Area({
       ...prev,
       open: false,
     }));
-    setSaveState(State.SAVING);
+    // setSaveState(State.SAVING); // Let auto save handle this with 5s debounce
   };
 
   const areaIsOpen = () =>
