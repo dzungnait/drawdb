@@ -126,7 +126,7 @@ export default function ControlPanel({
   const { notes, setNotes, updateNote, addNote, deleteNote } = useNotes();
   const { areas, setAreas, updateArea, addArea, deleteArea } = useAreas();
   const { undoStack, redoStack, setUndoStack, setRedoStack } = useUndoRedo();
-  const { selectedElement, setSelectedElement } = useSelect();
+  const { selectedElement, setSelectedElement, bulkSelectedElements, setBulkSelectedElements } = useSelect();
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
   const { version, gistId, setGistId, syncToServer, createManualSnapshot, manualSave } = useContext(IdContext);
@@ -624,6 +624,15 @@ export default function ControlPanel({
     if (layout.readOnly) {
       return;
     }
+    if (bulkSelectedElements.length > 1) {
+      bulkSelectedElements.forEach((el) => {
+        if (el.type === ObjectType.TABLE) deleteTable(el.id, true);
+        else if (el.type === ObjectType.NOTE) deleteNote(el.id, true);
+        else if (el.type === ObjectType.AREA) deleteArea(el.id, true);
+      });
+      setBulkSelectedElements([]);
+      return;
+    }
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         deleteTable(selectedElement.id);
@@ -676,6 +685,29 @@ export default function ControlPanel({
     }
   };
   const copy = () => {
+    // Multi-select: copy all bulk selected elements
+    if (bulkSelectedElements.length > 1) {
+      const items = bulkSelectedElements
+        .map((el) => {
+          if (el.type === ObjectType.TABLE) {
+            const table = tables.find((t) => t.id === el.id);
+            return table ? { _type: ObjectType.TABLE, ...table } : null;
+          } else if (el.type === ObjectType.NOTE) {
+            const note = notes.find((n) => n.id === el.id);
+            return note ? { _type: ObjectType.NOTE, ...note } : null;
+          } else if (el.type === ObjectType.AREA) {
+            const area = areas.find((a) => a.id === el.id);
+            return area ? { _type: ObjectType.AREA, ...area } : null;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      navigator.clipboard
+        .writeText(JSON.stringify({ _bulk: true, items }))
+        .catch(() => Toast.error(t("oops_smth_went_wrong")));
+      return;
+    }
+    // Single element copy
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         navigator.clipboard
@@ -686,12 +718,12 @@ export default function ControlPanel({
         break;
       case ObjectType.NOTE:
         navigator.clipboard
-          .writeText(JSON.stringify({ ...notes[selectedElement.id] }))
+          .writeText(JSON.stringify({ ...notes.find((n) => n.id === selectedElement.id) }))
           .catch(() => Toast.error(t("oops_smth_went_wrong")));
         break;
       case ObjectType.AREA:
         navigator.clipboard
-          .writeText(JSON.stringify({ ...areas[selectedElement.id] }))
+          .writeText(JSON.stringify({ ...areas.find((a) => a.id === selectedElement.id) }))
           .catch(() => Toast.error(t("oops_smth_went_wrong")));
         break;
       default:
@@ -709,6 +741,25 @@ export default function ControlPanel({
       } catch (error) {
         return;
       }
+      // Bulk paste: array of mixed elements
+      if (obj._bulk && Array.isArray(obj.items)) {
+        let noteOffset = notes.length;
+        let areaOffset = areas.length;
+        obj.items.forEach((item) => {
+          const { _type, ...data } = item;
+          if (_type === ObjectType.TABLE) {
+            addTable({
+              table: { ...data, x: data.x + 20, y: data.y + 20, id: nanoid() },
+            });
+          } else if (_type === ObjectType.NOTE) {
+            addNote({ ...data, x: data.x + 20, y: data.y + 20, id: noteOffset++ });
+          } else if (_type === ObjectType.AREA) {
+            addArea({ ...data, x: data.x + 20, y: data.y + 20, id: areaOffset++ });
+          }
+        });
+        return;
+      }
+      // Single element paste
       const v = new Validator();
       if (v.validate(obj, tableSchema).valid) {
         addTable({
