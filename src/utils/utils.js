@@ -62,8 +62,13 @@ export function areFieldsCompatible(db, field1Type, field2Type) {
   return same || isCompatible;
 }
 
+const _commentHeightCache = new Map();
+
 export function getCommentHeight(comment, containerWidth, showComments = true) {
   if (!comment || !showComments) return 0;
+
+  const cacheKey = `${comment}__${containerWidth}`;
+  if (_commentHeightCache.has(cacheKey)) return _commentHeightCache.get(cacheKey);
 
   const paddingBottom = 12;
   const borders = 4;
@@ -79,7 +84,9 @@ export function getCommentHeight(comment, containerWidth, showComments = true) {
   const height = span.offsetHeight;
   document.body.removeChild(span);
 
-  return height + paddingBottom;
+  const result = height + paddingBottom;
+  _commentHeightCache.set(cacheKey, result);
+  return result;
 }
 
 export function getTableHeight(table, width, showComments = true) {
