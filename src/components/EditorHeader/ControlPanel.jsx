@@ -760,6 +760,8 @@ export default function ControlPanel({
         let areaOffset = areas.length;
         // Map old table id → new table id for relationship remapping
         const tableIdMap = {};
+        // Track all newly created element ids for post-paste selection
+        const newlyPasted = [];
         obj.items.forEach((item) => {
           const { _type, ...data } = item;
           if (_type === ObjectType.TABLE) {
@@ -768,10 +770,15 @@ export default function ControlPanel({
             addTable({
               table: { ...data, x: data.x + 20, y: data.y + 20, id: newId },
             });
+            newlyPasted.push({ id: newId, type: ObjectType.TABLE, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
           } else if (_type === ObjectType.NOTE) {
-            addNote({ ...data, x: data.x + 20, y: data.y + 20, id: noteOffset++ });
+            const newId = noteOffset++;
+            addNote({ ...data, x: data.x + 20, y: data.y + 20, id: newId });
+            newlyPasted.push({ id: newId, type: ObjectType.NOTE, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
           } else if (_type === ObjectType.AREA) {
-            addArea({ ...data, x: data.x + 20, y: data.y + 20, id: areaOffset++ });
+            const newId = areaOffset++;
+            addArea({ ...data, x: data.x + 20, y: data.y + 20, id: newId });
+            newlyPasted.push({ id: newId, type: ObjectType.AREA, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
           }
         });
         // Re-create relationships with remapped table ids
@@ -789,33 +796,47 @@ export default function ControlPanel({
             }
           });
         }
+        // Auto-select all pasted elements so user can drag them immediately
+        if (newlyPasted.length > 0) {
+          setSelectedElement((prev) => ({ ...prev, element: ObjectType.NONE, id: -1, open: false }));
+          setBulkSelectedElements(newlyPasted);
+        }
         return;
       }
       // Single element paste
       const v = new Validator();
       if (v.validate(obj, tableSchema).valid) {
+        const newId = nanoid();
         addTable({
           table: {
             ...obj,
             x: obj.x + 20,
             y: obj.y + 20,
-            id: nanoid(),
+            id: newId,
           },
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.TABLE, id: newId, open: false }));
+        setBulkSelectedElements([]);
       } else if (v.validate(obj, areaSchema).valid) {
+        const newId = areas.length;
         addArea({
           ...obj,
           x: obj.x + 20,
           y: obj.y + 20,
-          id: areas.length,
+          id: newId,
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.AREA, id: newId, open: false }));
+        setBulkSelectedElements([]);
       } else if (v.validate(obj, noteSchema)) {
+        const newId = notes.length;
         addNote({
           ...obj,
           x: obj.x + 20,
           y: obj.y + 20,
-          id: notes.length,
+          id: newId,
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.NOTE, id: newId, open: false }));
+        setBulkSelectedElements([]);
       }
     });
   };
