@@ -75,6 +75,7 @@ const sw = {
     coordinate_space_screen: "Skrini",
     coordinate_space_diagram: "Mchoro",
     table_width: "Upana wa jedwali",
+    manage_pin: "Manage PIN",
     language: "Lugha",
     flush_storage: "Safisha hifadhi",
     are_you_sure_flush_storage:

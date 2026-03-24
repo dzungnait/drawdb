@@ -75,6 +75,7 @@ const da = {
     coordinate_space_screen: "Skærm",
     coordinate_space_diagram: "Diagram",
     table_width: "Tabel bredde",
+    manage_pin: "Manage PIN",
     language: "Sprog",
     flush_storage: "Tøm lagring",
     are_you_sure_flush_storage:

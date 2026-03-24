@@ -74,6 +74,7 @@ const bn = {
     coordinate_space_screen: "স্ক্রিন",
     coordinate_space_diagram: "ডায়াগ্রাম",
     table_width: "টেবিলের প্রস্থ",
+    manage_pin: "Manage PIN",
     language: "ভাষা",
     flush_storage: "স্টোরেজ ফ্লাশ করুন",
     are_you_sure_flush_storage: "আপনি কি নিশ্চিত যে আপনি স্টোরেজ ফ্লাশ করতে চান? এই পদক্ষেপের ফলে আপনার সকল ডায়াগ্রাম ও কাস্টম টেমপ্লেট স্থায়ীভাবে মুছে যাবে এবং আর ফিরে পাওয়া যাবে না।",

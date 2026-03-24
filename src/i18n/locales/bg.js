@@ -75,6 +75,7 @@ const bg = {
         coordinate_space_screen: "Екран",
         coordinate_space_diagram: "Диаграма",
         table_width: "Ширина на таблицата",
+    manage_pin: "Manage PIN",
         language: "Език",
         flush_storage: "Изчисти хранилището",
         are_you_sure_flush_storage:

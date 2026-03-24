@@ -75,6 +75,7 @@ const ur = {
     coordinate_space_screen: "سکرین",
     coordinate_space_diagram: "ڈایاگرام",
     table_width: "ٹیبل کی چوڑائی",
+    manage_pin: "Manage PIN",
     language: "زبان",
     flush_storage: "اسٹوریج صاف کریں",
     are_you_sure_flush_storage:

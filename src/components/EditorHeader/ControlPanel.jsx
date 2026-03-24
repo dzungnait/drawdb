@@ -1668,6 +1668,10 @@ export default function ControlPanel({
       language: {
         function: () => setModal(MODAL.LANGUAGE),
       },
+      manage_pin: {
+        function: () => setModal(MODAL.PIN),
+        disabled: !gistId,
+      },
       export_saved_data: {
         function: exportSavedData,
       },

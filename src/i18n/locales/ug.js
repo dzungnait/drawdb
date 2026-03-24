@@ -61,6 +61,7 @@ const ug = {
     autosave: "ئۆز-ئۆزىگە ساقلاش",
     panning: "پانننگ",
     table_width: "جەدۋەل كەڭلىكى",
+    manage_pin: "Manage PIN",
     language: "تىل",
     flush_storage: "ساقلاشنى تازىلاش",
     are_you_sure_flush_storage:

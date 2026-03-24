@@ -70,6 +70,7 @@ const id = {
     coordinate_space_screen: "Layar",
     coordinate_space_diagram: "Diagram",
     table_width: "Lebar tabel",
+    manage_pin: "Manage PIN",
     language: "Bahasa",
     flush_storage: "Bersihkan penyimpanan",
     are_you_sure_flush_storage:

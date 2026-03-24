@@ -75,6 +75,7 @@ const th = {
     coordinate_space_screen: "หน้าจอ",
     coordinate_space_diagram: "ไดอะแกรม",
     table_width: "ความกว้างของตาราง",
+    manage_pin: "Manage PIN",
     language: "ภาษา",
     flush_storage: "ล้างข้อมูลเก็บ",
     are_you_sure_flush_storage:

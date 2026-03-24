@@ -34,6 +34,7 @@ const SIDEPANEL_MIN_WIDTH = 384;
 export default function WorkSpace() {
   const [id, setId] = useState(0);
   const [gistId, setGistId] = useState("");
+  const [pinProtected, setPinProtected] = useState(false);
   const [version, setVersion] = useState("");
   const [loadedFromGistId, setLoadedFromGistId] = useState("");
   const [title, setTitle] = useState("Untitled Diagram");
@@ -356,6 +357,7 @@ export default function WorkSpace() {
       }
       setSaveState(State.SAVED);
       setFailedToLoadDesign(false);
+      setPinProtected(data.pin_protected || false);
       
       // Update URL để persist shareId
       const currentShareId = new URLSearchParams(window.location.search).get("shareId");
@@ -814,7 +816,7 @@ export default function WorkSpace() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave }}>
+      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave, pinProtected, setPinProtected }}>
         <ControlPanel
           diagramId={id}
           setDiagramId={setId}

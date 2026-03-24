@@ -68,6 +68,7 @@ const ar = {
     coordinate_space_screen: "الشاشة",
     coordinate_space_diagram: "المخطط",
     table_width: "عرض الجدول",
+    manage_pin: "Manage PIN",
     language: "اللغة",
     flush_storage: "مسح التخزين",
     are_you_sure_flush_storage:
