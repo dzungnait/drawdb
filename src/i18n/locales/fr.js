@@ -61,6 +61,7 @@ const fr = {
     autosave: "Sauvegarde automatique",
     panning: "Panoramique",
     table_width: "Largeur de la table",
+    manage_pin: "Manage PIN",
     language: "Langue",
     flush_storage: "Vider le stockage",
     are_you_sure_flush_storage:

@@ -72,6 +72,7 @@ const ms = {
     coordinate_space_screen: "Skrin",
     coordinate_space_diagram: "Rajah",
     table_width: "Lebar jadual",
+    manage_pin: "Manage PIN",
     language: "Bahasa",
     flush_storage: "Kosongkan storan",
     are_you_sure_flush_storage:

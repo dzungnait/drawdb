@@ -73,6 +73,7 @@ const vi = {
     coordinate_space_screen: "Màn hình",
     coordinate_space_diagram: "Sơ đồ",
     table_width: "Chiều rộng của bảng",
+    manage_pin: "Manage PIN",
     language: "Ngôn ngữ",
     flush_storage: "Xóa bộ nhớ",
     are_you_sure_flush_storage:

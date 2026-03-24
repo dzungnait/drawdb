@@ -68,6 +68,7 @@ const pl = {
     coordinate_space_screen: "Ekran",
     coordinate_space_diagram: "Diagram",
     table_width: "Szerokość tabeli",
+    manage_pin: "Manage PIN",
     language: "Język",
     flush_storage: "Wyczyść pamięć",
     are_you_sure_flush_storage:

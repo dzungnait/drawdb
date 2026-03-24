@@ -37,6 +37,8 @@ export const getModalWidth = (modal) => {
     case MODAL.CODE:
     case MODAL.NEW:
       return 740;
+    case MODAL.PIN:
+      return 420;
     default:
       return 600;
   }
@@ -60,6 +62,8 @@ export const getOkText = (modal) => {
       return i18n.t("create");
     case MODAL.SHARE:
       return i18n.t("share");
+    case MODAL.PIN:
+      return " ";
     default:
       return i18n.t("confirm");
   }

@@ -75,6 +75,7 @@ const nl = {
     coordinate_space_screen: "Scherm",
     coordinate_space_diagram: "Diagram",
     table_width: "Tabelbreedte",
+    manage_pin: "Manage PIN",
     language: "Taal",
     flush_storage: "Opslag legen",
     are_you_sure_flush_storage:

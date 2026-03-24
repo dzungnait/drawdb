@@ -61,6 +61,7 @@ const ru = {
     autosave: "Автосохранение",
     panning: "Панорамирование",
     table_width: "Ширина таблицы",
+    manage_pin: "Manage PIN",
     language: "Язык",
     flush_storage: "Очистить хранилище",
     are_you_sure_flush_storage:

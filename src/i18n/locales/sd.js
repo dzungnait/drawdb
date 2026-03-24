@@ -75,6 +75,7 @@ const sd = {
     coordinate_space_screen: "اسڪرين",
     coordinate_space_diagram: "ڊاياگرام",
     table_width: "ٽيبل جي ويڪر",
+    manage_pin: "Manage PIN",
     language: "ٻولي",
     flush_storage: "اسٽوريج صاف ڪريو",
     are_you_sure_flush_storage:

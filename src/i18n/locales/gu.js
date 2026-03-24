@@ -75,6 +75,7 @@ const gu = {
     coordinate_space_screen: "સ્ક્રીન",
     coordinate_space_diagram: "ડાયાગ્રામ",
     table_width: "ટેબલની પહોળાઈ",
+    manage_pin: "Manage PIN",
     language: "ભાષા",
     flush_storage: "સ્ટોરેજ ફ્લશ કરો",
     are_you_sure_flush_storage:

@@ -76,6 +76,7 @@ const en = {
     coordinate_space_diagram: "Diagram",
     table_width: "Table width",
     language: "Language",
+    manage_pin: "Manage PIN",
     flush_storage: "Flush storage",
     are_you_sure_flush_storage:
       "Are you sure you want to flush the storage? This will irreversibly delete all your diagrams and custom templates.",

@@ -61,6 +61,7 @@ const fa = {
     autosave: "ذخیره خودکار",
     panning: "پانینگ",
     table_width: "عرض جدول",
+    manage_pin: "Manage PIN",
     language: "زبان",
     flush_storage: "پاک کردن حافظه",
     are_you_sure_flush_storage:

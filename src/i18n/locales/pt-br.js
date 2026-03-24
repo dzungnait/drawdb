@@ -69,6 +69,7 @@ const pt = {
     coordinate_space_screen: "Tela",
     coordinate_space_diagram: "Diagrama",
     table_width: "Largura da tabela",
+    manage_pin: "Manage PIN",
     language: "Idioma",
     flush_storage: "Limpar armazenamento",
     are_you_sure_flush_storage:

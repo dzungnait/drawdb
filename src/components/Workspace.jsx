@@ -34,6 +34,7 @@ const SIDEPANEL_MIN_WIDTH = 384;
 export default function WorkSpace() {
   const [id, setId] = useState(0);
   const [gistId, setGistId] = useState("");
+  const [pinProtected, setPinProtected] = useState(false);
   const [version, setVersion] = useState("");
   const [loadedFromGistId, setLoadedFromGistId] = useState("");
   const [title, setTitle] = useState("Untitled Diagram");
@@ -356,6 +357,7 @@ export default function WorkSpace() {
       }
       setSaveState(State.SAVED);
       setFailedToLoadDesign(false);
+      setPinProtected(data.pin_protected || false);
       
       // Update URL để persist shareId
       const currentShareId = new URLSearchParams(window.location.search).get("shareId");
@@ -772,6 +774,33 @@ export default function WorkSpace() {
     setSaveState(State.SAVING);
   }, [setSaveState]);
 
+  // Trigger autosave when content changes (if autosave is enabled)
+  useEffect(() => {
+    const hasContent =
+      tables?.length > 0 ||
+      areas?.length > 0 ||
+      notes?.length > 0 ||
+      types?.length > 0 ||
+      tasks?.length > 0;
+    if (settings.autosave && (hasContent || title)) {
+      setSaveState(State.SAVING);
+    }
+  }, [
+    undoStack,
+    redoStack,
+    settings.autosave,
+    tables?.length,
+    areas?.length,
+    notes?.length,
+    types?.length,
+    relationships?.length,
+    tasks?.length,
+    transform?.zoom,
+    title,
+    gistId,
+    setSaveState,
+  ]);
+
   useEffect(() => {
     if (layout.readOnly) return;
 
@@ -780,15 +809,14 @@ export default function WorkSpace() {
     save();
   }, [saveState, layout, save]);
 
-  // Bỏ auto-sync to server - chỉ manual sync
-  // useEffect(() => {
-  //   if (saveState !== State.SAVED) return;
-  //   if (!gistId) return;
-  //   const syncTimer = setTimeout(() => {
-  //     syncToServer();
-  //   }, 500);
-  //   return () => clearTimeout(syncTimer);
-  // }, [saveState, gistId, syncToServer]);
+  useEffect(() => {
+    if (saveState !== State.SAVED) return;
+    if (!gistId) return;
+    const syncTimer = setTimeout(() => {
+      syncToServer();
+    }, 500);
+    return () => clearTimeout(syncTimer);
+  }, [saveState, gistId, syncToServer]);
 
   useEffect(() => {
     document.title = "Editor | drawDB";
@@ -816,7 +844,7 @@ export default function WorkSpace() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden theme">
-      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave }}>
+      <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave, pinProtected, setPinProtected }}>
         <ControlPanel
           diagramId={id}
           setDiagramId={setId}

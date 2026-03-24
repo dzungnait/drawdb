@@ -55,6 +55,12 @@ export default function Table({
     settings.showComments,
   );
 
+  // Memoize comment height so field() doesn't re-measure the DOM on every render
+  const commentHeight = useMemo(
+    () => getCommentHeight(tableData.comment, settings.tableWidth, settings.showComments),
+    [tableData.comment, settings.tableWidth, settings.showComments],
+  );
+
   const isSelected = useMemo(() => {
     return (
       (selectedElement.id == tableData.id &&
@@ -428,11 +434,7 @@ export default function Table({
                   index * tableFieldHeight +
                   tableHeaderHeight +
                   tableColorStripHeight +
-                  getCommentHeight(
-                    tableData.comment,
-                    settings.tableWidth,
-                    settings.showComments,
-                  ) +
+                  commentHeight +
                   14,
                 endX: tableData.x + 15,
                 endY:
@@ -440,11 +442,7 @@ export default function Table({
                   index * tableFieldHeight +
                   tableHeaderHeight +
                   tableColorStripHeight +
-                  getCommentHeight(
-                    tableData.comment,
-                    settings.tableWidth,
-                    settings.showComments,
-                  ) +
+                  commentHeight +
                   14,
               }));
             }}

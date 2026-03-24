@@ -126,7 +126,7 @@ export default function ControlPanel({
   const { notes, setNotes, updateNote, addNote, deleteNote } = useNotes();
   const { areas, setAreas, updateArea, addArea, deleteArea } = useAreas();
   const { undoStack, redoStack, setUndoStack, setRedoStack } = useUndoRedo();
-  const { selectedElement, setSelectedElement } = useSelect();
+  const { selectedElement, setSelectedElement, bulkSelectedElements, setBulkSelectedElements } = useSelect();
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
   const { version, gistId, setGistId, syncToServer, createManualSnapshot, manualSave } = useContext(IdContext);
@@ -624,6 +624,15 @@ export default function ControlPanel({
     if (layout.readOnly) {
       return;
     }
+    if (bulkSelectedElements.length > 1) {
+      bulkSelectedElements.forEach((el) => {
+        if (el.type === ObjectType.TABLE) deleteTable(el.id, true);
+        else if (el.type === ObjectType.NOTE) deleteNote(el.id, true);
+        else if (el.type === ObjectType.AREA) deleteArea(el.id, true);
+      });
+      setBulkSelectedElements([]);
+      return;
+    }
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         deleteTable(selectedElement.id);
@@ -676,6 +685,42 @@ export default function ControlPanel({
     }
   };
   const copy = () => {
+    // Multi-select: copy all bulk selected elements + relationships between selected tables
+    if (bulkSelectedElements.length > 1) {
+      const selectedTableIds = new Set(
+        bulkSelectedElements
+          .filter((el) => el.type === ObjectType.TABLE)
+          .map((el) => el.id),
+      );
+      const items = bulkSelectedElements
+        .map((el) => {
+          if (el.type === ObjectType.TABLE) {
+            const table = tables.find((t) => t.id === el.id);
+            return table ? { _type: ObjectType.TABLE, ...table } : null;
+          } else if (el.type === ObjectType.NOTE) {
+            const note = notes.find((n) => n.id === el.id);
+            return note ? { _type: ObjectType.NOTE, ...note } : null;
+          } else if (el.type === ObjectType.AREA) {
+            const area = areas.find((a) => a.id === el.id);
+            return area ? { _type: ObjectType.AREA, ...area } : null;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      // Include relationships where BOTH endpoints are within the selection
+      const selectedRelationships = relationships.filter(
+        (r) =>
+          selectedTableIds.has(r.startTableId) &&
+          selectedTableIds.has(r.endTableId),
+      );
+      navigator.clipboard
+        .writeText(
+          JSON.stringify({ _bulk: true, items, relationships: selectedRelationships }),
+        )
+        .catch(() => Toast.error(t("oops_smth_went_wrong")));
+      return;
+    }
+    // Single element copy
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         navigator.clipboard
@@ -686,12 +731,12 @@ export default function ControlPanel({
         break;
       case ObjectType.NOTE:
         navigator.clipboard
-          .writeText(JSON.stringify({ ...notes[selectedElement.id] }))
+          .writeText(JSON.stringify({ ...notes.find((n) => n.id === selectedElement.id) }))
           .catch(() => Toast.error(t("oops_smth_went_wrong")));
         break;
       case ObjectType.AREA:
         navigator.clipboard
-          .writeText(JSON.stringify({ ...areas[selectedElement.id] }))
+          .writeText(JSON.stringify({ ...areas.find((a) => a.id === selectedElement.id) }))
           .catch(() => Toast.error(t("oops_smth_went_wrong")));
         break;
       default:
@@ -709,30 +754,89 @@ export default function ControlPanel({
       } catch (error) {
         return;
       }
+      // Bulk paste: array of mixed elements
+      if (obj._bulk && Array.isArray(obj.items)) {
+        let noteOffset = notes.length;
+        let areaOffset = areas.length;
+        // Map old table id → new table id for relationship remapping
+        const tableIdMap = {};
+        // Track all newly created element ids for post-paste selection
+        const newlyPasted = [];
+        obj.items.forEach((item) => {
+          const { _type, ...data } = item;
+          if (_type === ObjectType.TABLE) {
+            const newId = nanoid();
+            tableIdMap[data.id] = newId;
+            addTable({
+              table: { ...data, x: data.x + 20, y: data.y + 20, id: newId },
+            });
+            newlyPasted.push({ id: newId, type: ObjectType.TABLE, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
+          } else if (_type === ObjectType.NOTE) {
+            const newId = noteOffset++;
+            addNote({ ...data, x: data.x + 20, y: data.y + 20, id: newId });
+            newlyPasted.push({ id: newId, type: ObjectType.NOTE, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
+          } else if (_type === ObjectType.AREA) {
+            const newId = areaOffset++;
+            addArea({ ...data, x: data.x + 20, y: data.y + 20, id: newId });
+            newlyPasted.push({ id: newId, type: ObjectType.AREA, currentCoords: { x: data.x + 20, y: data.y + 20 }, initialCoords: { x: data.x + 20, y: data.y + 20 } });
+          }
+        });
+        // Re-create relationships with remapped table ids
+        if (Array.isArray(obj.relationships)) {
+          obj.relationships.forEach((r) => {
+            const newStartTableId = tableIdMap[r.startTableId];
+            const newEndTableId = tableIdMap[r.endTableId];
+            if (newStartTableId && newEndTableId) {
+              addRelationship({
+                ...r,
+                id: nanoid(),
+                startTableId: newStartTableId,
+                endTableId: newEndTableId,
+              });
+            }
+          });
+        }
+        // Auto-select all pasted elements so user can drag them immediately
+        if (newlyPasted.length > 0) {
+          setSelectedElement((prev) => ({ ...prev, element: ObjectType.NONE, id: -1, open: false }));
+          setBulkSelectedElements(newlyPasted);
+        }
+        return;
+      }
+      // Single element paste
       const v = new Validator();
       if (v.validate(obj, tableSchema).valid) {
+        const newId = nanoid();
         addTable({
           table: {
             ...obj,
             x: obj.x + 20,
             y: obj.y + 20,
-            id: nanoid(),
+            id: newId,
           },
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.TABLE, id: newId, open: false }));
+        setBulkSelectedElements([]);
       } else if (v.validate(obj, areaSchema).valid) {
+        const newId = areas.length;
         addArea({
           ...obj,
           x: obj.x + 20,
           y: obj.y + 20,
-          id: areas.length,
+          id: newId,
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.AREA, id: newId, open: false }));
+        setBulkSelectedElements([]);
       } else if (v.validate(obj, noteSchema)) {
+        const newId = notes.length;
         addNote({
           ...obj,
           x: obj.x + 20,
           y: obj.y + 20,
-          id: notes.length,
+          id: newId,
         });
+        setSelectedElement((prev) => ({ ...prev, element: ObjectType.NOTE, id: newId, open: false }));
+        setBulkSelectedElements([]);
       }
     });
   };
@@ -1563,6 +1667,10 @@ export default function ControlPanel({
       },
       language: {
         function: () => setModal(MODAL.LANGUAGE),
+      },
+      manage_pin: {
+        function: () => setModal(MODAL.PIN),
+        disabled: !gistId,
       },
       export_saved_data: {
         function: exportSavedData,

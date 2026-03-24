@@ -75,6 +75,7 @@ const tl = {
     coordinate_space_screen: "Screen",
     coordinate_space_diagram: "Diagram",
     table_width: "Lapad ng Talahanayan",
+    manage_pin: "Manage PIN",
     language: "Wika",
     flush_storage: "I-flush ang Storage",
     are_you_sure_flush_storage:

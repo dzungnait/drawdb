@@ -68,6 +68,7 @@ const hy = {
     coordinate_space_screen: "Էկրան",
     coordinate_space_diagram: "Սխեմա",
     table_width: "Աղյուսակի լայնություն",
+    manage_pin: "Manage PIN",
     language: "Լեզու",
     flush_storage: "Դատարկել պահեստը",
     are_you_sure_flush_storage:

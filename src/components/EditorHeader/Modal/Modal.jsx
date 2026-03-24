@@ -39,6 +39,7 @@ import Open from "./Open";
 import Rename from "./Rename";
 import SetTableWidth from "./SetTableWidth";
 import Share from "./Share";
+import ManagePin from "./ManagePin";
 import { IdContext } from "../../../context/IdContext";
 import { nanoid } from "nanoid";
 
@@ -378,6 +379,8 @@ export default function Modal({
         );
       case MODAL.SHARE:
         return <Share title={title} setModal={setModal} />;
+      case MODAL.PIN:
+        return <ManagePin setModal={setModal} />;
       default:
         return <></>;
     }
@@ -422,9 +425,9 @@ export default function Modal({
           ((modal === MODAL.IMG || modal === MODAL.CODE) && !exportData.data) ||
           (modal === MODAL.SAVEAS && saveAsTitle === "") ||
           (modal === MODAL.IMPORT_SRC && importSource.src === ""),
-        hidden: modal === MODAL.SHARE,
+        hidden: modal === MODAL.SHARE || modal === MODAL.PIN,
       }}
-      hasCancel={modal !== MODAL.SHARE}
+      hasCancel={modal !== MODAL.SHARE && modal !== MODAL.PIN}
       cancelText={t("cancel")}
       width={getModalWidth(modal)}
       bodyStyle={{

@@ -68,6 +68,7 @@ const ro = {
     coordinate_space_screen: "Ecran",
     coordinate_space_diagram: "Diagramă",
     table_width: "Lățimea tabelului",
+    manage_pin: "Manage PIN",
     language: "Limbă",
     flush_storage: "Golește depozitorea",
     are_you_sure_flush_storage:

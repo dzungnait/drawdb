@@ -75,6 +75,7 @@ const mn = {
     coordinate_space_screen: "Дэлгэц",
     coordinate_space_diagram: "Диаграмм",
     table_width: "Хүснэгтийн өргөн",
+    manage_pin: "Manage PIN",
     language: "Хэл",
     flush_storage: "Хадгалалт цэвэрлэх",
     are_you_sure_flush_storage:

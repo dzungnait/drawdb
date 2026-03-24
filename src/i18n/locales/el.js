@@ -73,6 +73,7 @@ const el = {
     coordinate_space_screen: "Οθόνη",
     coordinate_space_diagram: "Διάγραμμα",
     table_width: "Πλάτος πίνακα",
+    manage_pin: "Manage PIN",
     language: "Γλώσσα",
     flush_storage: "Εκκαθάριση αποθήκευσης",
     are_you_sure_flush_storage:

@@ -60,6 +60,7 @@ const od = {
     autosave: "ଅଟୋସେଭ୍",
     panning: "ପ୍ୟାନିଂ",
     table_width: "ଟେବଲ୍ ଚଉଡ଼ା",
+    manage_pin: "Manage PIN",
     language: "ଭାଷା",
     flush_storage: "ସ୍ଟୋରେଜ୍ ସଫା କରନ୍ତୁ",
     are_you_sure_flush_storage:

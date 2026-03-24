@@ -68,6 +68,7 @@ const de = {
     coordinate_space_screen: "Bildschirm",
     coordinate_space_diagram: "Diagramm",
     table_width: "Tabellenbreite",
+    manage_pin: "Manage PIN",
     language: "Sprache",
     flush_storage: "Speicher leeren",
     are_you_sure_flush_storage:

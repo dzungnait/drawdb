@@ -75,6 +75,7 @@ const es = {
     coordinate_space_screen: "Espacio de coordenadas de pantalla",
     coordinate_space_diagram: "Espacio de coordenadas de diagrama",
     table_width: "Ancho de la tabla",
+    manage_pin: "Manage PIN",
     language: "Idioma",
     flush_storage: "Vaciar almacenamiento",
     are_you_sure_flush_storage:

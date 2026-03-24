@@ -68,6 +68,7 @@ const no = {
     coordinate_space_screen: "Skjerm",
     coordinate_space_diagram: "Diagram",
     table_width: "Tabellbredde",
+    manage_pin: "Manage PIN",
     language: "Språk",
     flush_storage: "Tøm lagring",
     are_you_sure_flush_storage:

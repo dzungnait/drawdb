@@ -68,6 +68,7 @@ const tr = {
     coordinate_space_screen: "Ekran",
     coordinate_space_diagram: "Diagram",
     table_width: "Tablo genişliği",
+    manage_pin: "Manage PIN",
     language: "Dil",
     flush_storage: "Depoyu temizle",
     are_you_sure_flush_storage:

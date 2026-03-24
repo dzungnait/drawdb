@@ -62,6 +62,7 @@ const hi = {
     autosave: "ऑटोसेव",
     panning: "पैनिंग",
     table_width: "टेबल की चौड़ाई",
+    manage_pin: "Manage PIN",
     language: "भाषा",
     flush_storage: "स्टोरेज साफ़ करें",
     are_you_sure_flush_storage:

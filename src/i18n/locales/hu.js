@@ -75,6 +75,7 @@ const hu = {
     coordinate_space_screen: "Szerkesztő",
     coordinate_space_diagram: "Diagram",
     table_width: "Táblák szélessége",
+    manage_pin: "Manage PIN",
     language: "Nyelv",
     flush_storage: "Tárhely ürítése",
     are_you_sure_flush_storage:

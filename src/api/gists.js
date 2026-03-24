@@ -361,3 +361,21 @@ export async function compare(gistId, file, versionA, versionB) {
 
   return res.data;
 }
+/**
+ * Update, set, or remove PIN protection for a design.
+ * - Set PIN on unprotected design: updatePin(id, null, newPin)
+ * - Change PIN on protected design: updatePin(id, currentPin, newPin)
+ * - Remove PIN from protected design: updatePin(id, currentPin, null)
+ */
+export async function updatePin(designId, currentPin, newPin) {
+  const body = {};
+  if (currentPin) body.currentPin = currentPin;
+  if (newPin) body.newPin = newPin;
+
+  const { data } = await axios.patch(
+    `${baseUrl}/designs/${designId}/pin`,
+    body,
+    { headers: getAuthHeaders(designId) },
+  );
+  return data;
+}
