@@ -685,8 +685,13 @@ export default function ControlPanel({
     }
   };
   const copy = () => {
-    // Multi-select: copy all bulk selected elements
+    // Multi-select: copy all bulk selected elements + relationships between selected tables
     if (bulkSelectedElements.length > 1) {
+      const selectedTableIds = new Set(
+        bulkSelectedElements
+          .filter((el) => el.type === ObjectType.TABLE)
+          .map((el) => el.id),
+      );
       const items = bulkSelectedElements
         .map((el) => {
           if (el.type === ObjectType.TABLE) {
@@ -702,8 +707,16 @@ export default function ControlPanel({
           return null;
         })
         .filter(Boolean);
+      // Include relationships where BOTH endpoints are within the selection
+      const selectedRelationships = relationships.filter(
+        (r) =>
+          selectedTableIds.has(r.startTableId) &&
+          selectedTableIds.has(r.endTableId),
+      );
       navigator.clipboard
-        .writeText(JSON.stringify({ _bulk: true, items }))
+        .writeText(
+          JSON.stringify({ _bulk: true, items, relationships: selectedRelationships }),
+        )
         .catch(() => Toast.error(t("oops_smth_went_wrong")));
       return;
     }
@@ -745,11 +758,15 @@ export default function ControlPanel({
       if (obj._bulk && Array.isArray(obj.items)) {
         let noteOffset = notes.length;
         let areaOffset = areas.length;
+        // Map old table id → new table id for relationship remapping
+        const tableIdMap = {};
         obj.items.forEach((item) => {
           const { _type, ...data } = item;
           if (_type === ObjectType.TABLE) {
+            const newId = nanoid();
+            tableIdMap[data.id] = newId;
             addTable({
-              table: { ...data, x: data.x + 20, y: data.y + 20, id: nanoid() },
+              table: { ...data, x: data.x + 20, y: data.y + 20, id: newId },
             });
           } else if (_type === ObjectType.NOTE) {
             addNote({ ...data, x: data.x + 20, y: data.y + 20, id: noteOffset++ });
@@ -757,6 +774,21 @@ export default function ControlPanel({
             addArea({ ...data, x: data.x + 20, y: data.y + 20, id: areaOffset++ });
           }
         });
+        // Re-create relationships with remapped table ids
+        if (Array.isArray(obj.relationships)) {
+          obj.relationships.forEach((r) => {
+            const newStartTableId = tableIdMap[r.startTableId];
+            const newEndTableId = tableIdMap[r.endTableId];
+            if (newStartTableId && newEndTableId) {
+              addRelationship({
+                ...r,
+                id: nanoid(),
+                startTableId: newStartTableId,
+                endTableId: newEndTableId,
+              });
+            }
+          });
+        }
         return;
       }
       // Single element paste
