@@ -56,6 +56,8 @@ const vi = {
     show_datatype: "Hiển thị kiểu dữ liệu",
     show_cardinality: "Hiển thị số lượng",
     theme: "Chủ đề",
+    view_mode: "Chế độ xem (chỉ đọc)",
+    exit_view_mode: "Thoát chế độ xem",
     light: "Sáng",
     dark: "Tối",
     zoom_in: "Phóng to",
