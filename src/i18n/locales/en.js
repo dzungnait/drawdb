@@ -58,6 +58,8 @@ const en = {
     show_datatype: "Show datatype",
     show_cardinality: "Show cardinality",
     theme: "Theme",
+    view_mode: "View mode (read-only)",
+    exit_view_mode: "Exit view mode",
     light: "Light",
     dark: "Dark",
     zoom_in: "Zoom in",

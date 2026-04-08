@@ -1957,6 +1957,18 @@ export default function ControlPanel({
               <i className="fa-solid fa-circle-half-stroke" />
             </button>
           </Tooltip>
+          <Divider layout="vertical" margin="8px" />
+          <Tooltip
+            content={layout.readOnly ? t("exit_view_mode") : t("view_mode")}
+            position="bottom"
+          >
+            <button
+              className={`py-1 px-2 hover-2 rounded-sm text-xl -mt-0.5${layout.readOnly ? " text-blue-500" : ""}`}
+              onClick={() => invertLayout("readOnly")}
+            >
+              <i className={layout.readOnly ? "fa-solid fa-eye-slash" : "fa-solid fa-eye"} />
+            </button>
+          </Tooltip>
         </div>
         <button
           onClick={() => invertLayout("header")}

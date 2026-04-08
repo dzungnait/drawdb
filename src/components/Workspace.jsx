@@ -776,6 +776,7 @@ export default function WorkSpace() {
 
   // Trigger autosave when content changes (if autosave is enabled)
   useEffect(() => {
+    if (layout.readOnly) return;
     const hasContent =
       tables?.length > 0 ||
       areas?.length > 0 ||
@@ -786,6 +787,7 @@ export default function WorkSpace() {
       setSaveState(State.SAVING);
     }
   }, [
+    layout.readOnly,
     undoStack,
     redoStack,
     settings.autosave,
