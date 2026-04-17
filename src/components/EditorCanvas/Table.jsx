@@ -43,7 +43,7 @@ export default function Table({
     bulkSelectedElements,
     setBulkSelectedElements,
   } = useSelect();
-  const { remoteSelections } = useCollaboration() || {};
+  const { remoteSelections, entityLocks } = useCollaboration() || {};
 
   // Check if another user has this table selected
   const remoteSelector = useMemo(() => {
@@ -55,6 +55,12 @@ export default function Table({
     }
     return null;
   }, [remoteSelections, tableData.id]);
+
+  // Check if another user is editing this table
+  const remoteLock = useMemo(() => {
+    if (!entityLocks) return null;
+    return entityLocks[`table:${tableData.id}`] || null;
+  }, [entityLocks, tableData.id]);
 
   const borderColor = useMemo(
     () => (settings.mode === "light" ? "border-zinc-300" : "border-zinc-600"),
@@ -186,6 +192,14 @@ export default function Table({
               style={{ backgroundColor: remoteSelector.color }}
             >
               {remoteSelector.nickname}
+            </div>
+          )}
+          {remoteLock && (
+            <div
+              className="absolute -top-5 right-0 px-1.5 py-0.5 rounded text-[9px] font-medium text-white whitespace-nowrap z-10 flex items-center gap-0.5"
+              style={{ backgroundColor: remoteLock.color }}
+            >
+              ✏️ {remoteLock.nickname}
             </div>
           )}
           <div

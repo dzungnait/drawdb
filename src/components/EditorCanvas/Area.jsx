@@ -15,6 +15,7 @@ import {
   useSelect,
   useAreas,
   useSaveState,
+  useCollaboration,
 } from "../../hooks";
 import { useTranslation } from "react-i18next";
 import { useHover } from "usehooks-ts";
@@ -37,6 +38,11 @@ export default function Area({
     bulkSelectedElements,
     setBulkSelectedElements,
   } = useSelect();
+  const { entityLocks } = useCollaboration() || {};
+  const remoteLock = useMemo(() => {
+    if (!entityLocks) return null;
+    return entityLocks[`area:${data.id}`] || null;
+  }, [entityLocks, data.id]);
 
   const handleResize = (e, dir) => {
     setResize({ id: data.id, dir: dir });
@@ -165,6 +171,14 @@ export default function Area({
           style={{ backgroundColor: `${data.color}66` }}
           onDoubleClick={edit}
         >
+          {remoteLock && (
+            <div
+              className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[9px] font-medium text-white whitespace-nowrap z-10"
+              style={{ backgroundColor: remoteLock.color }}
+            >
+              ✏️ {remoteLock.nickname}
+            </div>
+          )}
           <div className="flex justify-between gap-1 w-full">
             <div className="text-color select-none overflow-hidden text-ellipsis">
               {data.name}

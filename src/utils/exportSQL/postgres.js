@@ -1,4 +1,4 @@
-import { escapeQuotes, exportFieldComment, parseDefault } from "./shared";
+import { escapeQuotes, exportFieldComment, parseDefault, buildForeignKeyStatements } from "./shared";
 import { dbToTypes } from "../../data/datatypes";
 
 export function toPostgres(diagram) {
@@ -85,21 +85,12 @@ export function toPostgres(diagram) {
     })
     .join("\n\n");
 
-  const foreignKeyStatements = diagram.references
-    .map((r) => {
-      const startTable = diagram.tables.find((t) => t.id === r.startTableId);
-      const endTable = diagram.tables.find((t) => t.id === r.endTableId);
-      const startField = startTable?.fields.find(
-        (f) => f.id === r.startFieldId,
-      );
-      const endField = endTable?.fields.find((f) => f.id === r.endFieldId);
-
-      if (!startTable || !endTable || !startField || !endField) return "";
-
-      return `ALTER TABLE "${startTable.name}"\nADD FOREIGN KEY("${startField.name}") REFERENCES "${endTable.name}"("${endField.name}")\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
-    })
-    .filter(Boolean)
-    .join("\n");
+  const foreignKeyStatements = buildForeignKeyStatements(
+    diagram.references,
+    diagram.tables,
+    '"',
+    '"',
+  );
 
   return [
     enumStatements,

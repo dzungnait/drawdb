@@ -3,7 +3,7 @@ import { Button, Collapse, TextArea, Input } from "@douyinfe/semi-ui";
 import ColorPicker from "../ColorPicker";
 import { IconDeleteStroked } from "@douyinfe/semi-icons";
 import { Action, ObjectType } from "../../../data/constants";
-import { useLayout, useNotes, useUndoRedo } from "../../../hooks";
+import { useLayout, useNotes, useUndoRedo, useEntityLock } from "../../../hooks";
 import { useTranslation } from "react-i18next";
 
 export default function NoteInfo({ data, nid }) {
@@ -13,6 +13,7 @@ export default function NoteInfo({ data, nid }) {
   const [editField, setEditField] = useState({});
   const { t } = useTranslation();
   const initialColorRef = useRef(data.color);
+  const { handleFocus: lockFocus, handleBlur: lockBlur } = useEntityLock(`note:${data.id}`);
 
   const handleColorPick = (color) => {
     setUndoStack((prev) => {
@@ -59,6 +60,7 @@ export default function NoteInfo({ data, nid }) {
       itemKey={`${data.id}`}
       id={`scroll_note_${data.id}`}
     >
+      <div onFocus={lockFocus} onBlur={lockBlur}>
       <div className="flex items-center mb-2">
         <div className="font-semibold me-2 break-keep">{t("title")}:</div>
         <Input
@@ -142,6 +144,7 @@ export default function NoteInfo({ data, nid }) {
             onClick={() => deleteNote(nid, true)}
           />
         </div>
+      </div>
       </div>
     </Collapse.Panel>
   );

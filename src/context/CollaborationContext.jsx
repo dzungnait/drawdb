@@ -10,6 +10,8 @@ import {
   sendFullStateForPeer,
   flushOfflineQueue,
   getOfflineQueueSize,
+  sendLockEntity,
+  sendUnlockEntity,
 } from "../services/collaboration";
 import { onOperation } from "../utils/operationEmitter";
 
@@ -33,6 +35,7 @@ export default function CollaborationProvider({
   const [users, setUsers] = useState([]); // PresenceInfo[]
   const [remoteCursors, setRemoteCursors] = useState({}); // socketId -> { x, y, nickname, color }
   const [remoteSelections, setRemoteSelections] = useState({}); // socketId -> { type, id, nickname, color }
+  const [entityLocks, setEntityLocks] = useState({}); // entityKey -> { socketId, nickname, color }
   const isConnectedRef = useRef(false);
 
   // Track if we've connected before (to detect reconnections vs first connect)
@@ -108,11 +111,19 @@ export default function CollaborationProvider({
       console.log(`⚡ Disconnected: ${reason}`);
     };
 
-    const onRoomJoined = ({ role, users: roomUsers, nickname, color }) => {
+    const onRoomJoined = ({ role, users: roomUsers, nickname, color, entityLocks: locks }) => {
       setMyRole(role);
       setMyNickname(nickname);
       setMyColor(color);
       setUsers(roomUsers);
+      // Initialize entity locks from server
+      if (locks && locks.length > 0) {
+        const lockMap = {};
+        for (const lock of locks) {
+          lockMap[lock.entityKey] = { socketId: lock.socketId, nickname: lock.nickname, color: lock.color };
+        }
+        setEntityLocks(lockMap);
+      }
       if (role === "viewer") {
         setReadOnly(true);
       }
@@ -141,6 +152,18 @@ export default function CollaborationProvider({
         const next = { ...prev };
         delete next[socketId];
         return next;
+      });
+      // Release all locks held by this user
+      setEntityLocks((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const key of Object.keys(next)) {
+          if (next[key].socketId === socketId) {
+            delete next[key];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
       });
     };
 
@@ -202,6 +225,21 @@ export default function CollaborationProvider({
       }
     };
 
+    const onEntityLocked = ({ entityKey, socketId, nickname, color }) => {
+      setEntityLocks((prev) => ({
+        ...prev,
+        [entityKey]: { socketId, nickname, color },
+      }));
+    };
+
+    const onEntityUnlocked = ({ entityKey }) => {
+      setEntityLocks((prev) => {
+        const next = { ...prev };
+        delete next[entityKey];
+        return next;
+      });
+    };
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room-joined", onRoomJoined);
@@ -213,6 +251,8 @@ export default function CollaborationProvider({
     socket.on("role-changed", onRoleChanged);
     socket.on("full-state-update", onFullState);
     socket.on("request-state-from-peer", onRequestStateFromPeer);
+    socket.on("entity-locked", onEntityLocked);
+    socket.on("entity-unlocked", onEntityUnlocked);
     socket.on("error", onError);
 
     socket.connect();
@@ -229,6 +269,8 @@ export default function CollaborationProvider({
       socket.off("role-changed", onRoleChanged);
       socket.off("full-state-update", onFullState);
       socket.off("request-state-from-peer", onRequestStateFromPeer);
+      socket.off("entity-locked", onEntityLocked);
+      socket.off("entity-unlocked", onEntityUnlocked);
       socket.off("error", onError);
       disconnectFromRoom();
     };
@@ -272,6 +314,9 @@ export default function CollaborationProvider({
         users,
         remoteCursors,
         remoteSelections,
+        entityLocks,
+        lockEntity: sendLockEntity,
+        unlockEntity: sendUnlockEntity,
         broadcastOperation,
         broadcastCursor,
         broadcastSelection,

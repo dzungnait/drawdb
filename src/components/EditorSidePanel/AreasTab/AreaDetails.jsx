@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Button, Input } from "@douyinfe/semi-ui";
 import ColorPicker from "../ColorPicker";
 import { IconDeleteStroked } from "@douyinfe/semi-icons";
-import { useAreas, useLayout, useUndoRedo } from "../../../hooks";
+import { useAreas, useLayout, useUndoRedo, useEntityLock } from "../../../hooks";
 import { Action, ObjectType } from "../../../data/constants";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,7 @@ export default function AreaInfo({ data, i }) {
   const { setUndoStack, setRedoStack } = useUndoRedo();
   const [editField, setEditField] = useState({});
   const initialColorRef = useRef(data.color);
+  const { handleFocus: lockFocus, handleBlur: lockBlur } = useEntityLock(`area:${data.id}`);
 
   const handleColorPick = (color) => {
     setUndoStack((prev) => {
@@ -50,7 +51,7 @@ export default function AreaInfo({ data, i }) {
   };
 
   return (
-    <div id={`scroll_area_${data.id}`} className="my-3 flex gap-2 items-center">
+    <div id={`scroll_area_${data.id}`} className="my-3 flex gap-2 items-center" onFocus={lockFocus} onBlur={lockBlur}>
       <Input
         value={data.name}
         placeholder={t("name")}

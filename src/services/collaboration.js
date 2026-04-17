@@ -83,6 +83,20 @@ export function requestEditSlot() {
   }
 }
 
+export function sendLockEntity(entityKey) {
+  const s = getSocket();
+  if (s.connected) {
+    s.emit("lock-entity", { entityKey });
+  }
+}
+
+export function sendUnlockEntity(entityKey) {
+  const s = getSocket();
+  if (s.connected) {
+    s.emit("unlock-entity", { entityKey });
+  }
+}
+
 export function requestFullState() {
   const s = getSocket();
   if (s.connected) {

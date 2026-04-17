@@ -1,63 +1,70 @@
 import { dbToTypes } from "../../data/datatypes";
-import { parseDefault } from "./shared";
+import { parseDefault, buildTableMap } from "./shared";
+
+function exportField(field, database) {
+  const parts = [
+    `\t"${field.name}" ${field.type}${field.size !== undefined && field.size !== "" ? "(" + field.size + ")" : ""}`,
+  ];
+
+  if (field.notNull) parts.push(" NOT NULL");
+  if (field.increment) parts.push(" GENERATED ALWAYS AS IDENTITY");
+  if (field.unique) parts.push(" UNIQUE");
+  if (field.default !== "") {
+    parts.push(` DEFAULT ${parseDefault(field, database)}`);
+  }
+  if (field.check && dbToTypes[database][field.type].hasCheck) {
+    parts.push(` CHECK(${field.check})`);
+  }
+
+  const commentPrefix = field.comment ? `\t-- ${field.comment}\n` : "";
+  return `${commentPrefix}${parts.join("")}`;
+}
+
+function exportTable(table, database) {
+  const fieldsSql = table.fields
+    .map((f) => exportField(f, database))
+    .join(",\n");
+
+  const primaryKeys = table.fields.filter((f) => f.primary);
+  const pkSql =
+    primaryKeys.length > 0
+      ? `,\n\tPRIMARY KEY(${primaryKeys.map((f) => `"${f.name}"`).join(", ")})`
+      : "";
+
+  const commentSql = table.comment ? `/* ${table.comment} */\n` : "";
+
+  const indicesSql = table.indices
+    .map(
+      (i) =>
+        `\nCREATE ${i.unique ? "UNIQUE " : ""}INDEX "${i.name}"\nON "${table.name}" (${i.fields.map((f) => `"${f}"`).join(", ")});`,
+    )
+    .join("");
+
+  return `${commentSql}CREATE TABLE "${table.name}" (\n${fieldsSql}${pkSql}\n);\n${indicesSql}`;
+}
 
 export function toOracleSQL(diagram) {
-  return `${diagram.tables
-    .map(
-      (table) =>
-        `${
-          table.comment === "" ? "" : `/* ${table.comment} */\n`
-        }CREATE TABLE "${table.name}" (\n${table.fields
-          .map(
-            (field) =>
-              `${field.comment === "" ? "" : `\t-- ${field.comment}\n`}\t"${
-                field.name
-              }" ${field.type}${
-                field.size !== undefined && field.size !== ""
-                  ? "(" + field.size + ")"
-                  : ""
-              }${field.notNull ? " NOT NULL" : ""}${
-                field.increment ? " GENERATED ALWAYS AS IDENTITY" : ""
-              }${field.unique ? " UNIQUE" : ""}${
-                field.default !== ""
-                  ? ` DEFAULT ${parseDefault(field, diagram.database)}`
-                  : ""
-              }${
-                field.check === "" ||
-                !dbToTypes[diagram.database][field.type].hasCheck
-                  ? ""
-                  : ` CHECK(${field.check})`
-              }${field.comment ? ` -- ${field.comment}` : ""}`,
-          )
-          .join(",\n")}${
-          table.fields.filter((f) => f.primary).length > 0
-            ? `,\n\tPRIMARY KEY(${table.fields
-                .filter((f) => f.primary)
-                .map((f) => `"${f.name}"`)
-                .join(", ")})`
-            : ""
-        }\n)${table.comment ? ` -- ${table.comment}` : ""};\n${`\n${table.indices
-          .map(
-            (i) =>
-              `\nCREATE ${i.unique ? "UNIQUE " : ""}INDEX "${i.name}"\nON "${table.name}" (${i.fields
-                .map((f) => `"${f}"`)
-                .join(", ")});`,
-          )
-          .join("")}`}`,
-    )
-    .join("\n")}\n${diagram.references
+  const tableMap = buildTableMap(diagram.tables);
+  const tablesSql = diagram.tables
+    .map((t) => exportTable(t, diagram.database))
+    .join("\n\n");
+
+  const fkSql = diagram.references
     .map((r) => {
-      const { name: startName, fields: startFields } = diagram.tables.find(
-        (t) => t.id === r.startTableId,
+      const startTable = tableMap.get(r.startTableId);
+      const endTable = tableMap.get(r.endTableId);
+      if (!startTable || !endTable) return "";
+
+      const startField = startTable.fields.find(
+        (f) => f.id === r.startFieldId,
       );
-      const { name: endName, fields: endFields } = diagram.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE "${startName}"\nADD CONSTRAINT "${r.name}" FOREIGN KEY ("${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }") REFERENCES "${endName}" ("${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }")\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
+      const endField = endTable.fields.find((f) => f.id === r.endFieldId);
+      if (!startField || !endField) return "";
+
+      return `ALTER TABLE "${startTable.name}"\nADD CONSTRAINT "${r.name}" FOREIGN KEY ("${startField.name}") REFERENCES "${endTable.name}" ("${endField.name}")\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
     })
-    .join("\n")}`;
+    .filter(Boolean)
+    .join("\n");
+
+  return [tablesSql, fkSql].filter(Boolean).join("\n\n");
 }
