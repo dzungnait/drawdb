@@ -4,6 +4,7 @@ import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
 import { useUndoRedo } from "../hooks";
 import { nanoid } from "nanoid";
+import { emitOperation } from "../utils/operationEmitter";
 
 export const EnumsContext = createContext(null);
 
@@ -42,6 +43,7 @@ export default function EnumsContextProvider({ children }) {
       ]);
       setRedoStack([]);
     }
+    emitOperation({ type: "add", target: "enum", data: { enum: data?.enum ?? newEnum } });
   };
 
   const deleteEnum = (id, addToHistory = true) => {
@@ -65,12 +67,14 @@ export default function EnumsContextProvider({ children }) {
       setRedoStack([]);
     }
     setEnums((prev) => prev.filter((e) => e.id !== id));
+    emitOperation({ type: "delete", target: "enum", targetId: id });
   };
 
   const updateEnum = (id, values) => {
     setEnums((prev) =>
       prev.map((e) => (e.id === id ? { ...e, ...values } : e)),
     );
+    emitOperation({ type: "edit", target: "enum", targetId: id, data: values });
   };
 
   return (

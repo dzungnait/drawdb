@@ -8,6 +8,7 @@ import {
 import { useUndoRedo, useTransform, useSelect } from "../hooks";
 import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
+import { emitOperation } from "../utils/operationEmitter";
 
 export const NotesContext = createContext(null);
 
@@ -53,6 +54,11 @@ export default function NotesContextProvider({ children }) {
       ]);
       setRedoStack([]);
     }
+    setNotes((prev) => {
+      const addedNote = prev[prev.length - 1];
+      if (addedNote) emitOperation({ type: "add", target: "note", data: { note: addedNote } });
+      return prev;
+    });
   };
 
   const deleteNote = (id, addToHistory = true) => {
@@ -80,6 +86,7 @@ export default function NotesContextProvider({ children }) {
         open: false,
       }));
     }
+    emitOperation({ type: "delete", target: "note", targetId: id });
   };
 
   const updateNote = useCallback((id, values) => {
@@ -94,6 +101,7 @@ export default function NotesContextProvider({ children }) {
         return t;
       }),
     );
+    emitOperation({ type: "edit", target: "note", targetId: id, data: values });
   }, []);
 
   return (

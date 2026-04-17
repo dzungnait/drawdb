@@ -101,6 +101,28 @@ export default function WorkSpace() {
           setTables((prev) =>
             prev.map((t) => (t.id === targetId ? { ...t, x: data.x, y: data.y } : t))
           );
+        } else if (type === "edit-field") {
+          const { fieldId, ...fieldValues } = data;
+          setTables((prev) =>
+            prev.map((t) =>
+              t.id === targetId
+                ? {
+                    ...t,
+                    fields: t.fields.map((f) =>
+                      f.id === fieldId ? { ...f, ...fieldValues } : f,
+                    ),
+                  }
+                : t,
+            )
+          );
+        } else if (type === "delete-field") {
+          setTables((prev) =>
+            prev.map((t) =>
+              t.id === targetId
+                ? { ...t, fields: t.fields.filter((f) => f.id !== data.fieldId) }
+                : t,
+            )
+          );
         }
       } else if (target === "relationship") {
         if (type === "add" && data.relationship) {

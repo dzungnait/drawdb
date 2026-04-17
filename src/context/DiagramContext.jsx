@@ -4,6 +4,7 @@ import { useTransform, useUndoRedo, useSelect } from "../hooks";
 import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
+import { emitOperation } from "../utils/operationEmitter";
 
 export const DiagramContext = createContext(null);
 
@@ -42,6 +43,7 @@ export default function DiagramContextProvider({ children }) {
       indices: [],
       color: defaultBlue,
     };
+    const tableToAdd = data ? data.table : newTable;
     if (data) {
       setTables((prev) => {
         const temp = prev.slice();
@@ -63,6 +65,7 @@ export default function DiagramContextProvider({ children }) {
       ]);
       setRedoStack([]);
     }
+    emitOperation({ type: "add", target: "table", data: { table: tableToAdd } });
   };
 
   const deleteTable = (id, addToHistory = true) => {
@@ -103,12 +106,14 @@ export default function DiagramContextProvider({ children }) {
         open: false,
       }));
     }
+    emitOperation({ type: "delete", target: "table", targetId: id });
   };
 
   const updateTable = (id, updatedValues) => {
     setTables((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updatedValues } : t)),
     );
+    emitOperation({ type: "edit", target: "table", targetId: id, data: updatedValues });
   };
 
   const updateField = (tid, fid, updatedValues) => {
@@ -125,6 +130,7 @@ export default function DiagramContextProvider({ children }) {
         return table;
       }),
     );
+    emitOperation({ type: "edit-field", target: "table", targetId: tid, data: { fieldId: fid, ...updatedValues } });
   };
 
   const deleteField = (field, tid, addToHistory = true) => {
@@ -168,9 +174,12 @@ export default function DiagramContextProvider({ children }) {
           ),
       ),
     );
-    updateTable(tid, {
-      fields: fields.filter((e) => e.id !== field.id),
-    });
+    setTables((prev) =>
+      prev.map((t) =>
+        t.id === tid ? { ...t, fields: fields.filter((e) => e.id !== field.id) } : t,
+      ),
+    );
+    emitOperation({ type: "delete-field", target: "table", targetId: tid, data: { fieldId: field.id } });
   };
 
   const addRelationship = (data, addToHistory = true) => {
@@ -191,6 +200,7 @@ export default function DiagramContextProvider({ children }) {
         setRedoStack([]);
         return [...prev, data];
       });
+      emitOperation({ type: "add", target: "relationship", data: { relationship: data } });
     } else {
       setRelationships((prev) => {
         const temp = prev.slice();
@@ -220,12 +230,14 @@ export default function DiagramContextProvider({ children }) {
       setRedoStack([]);
     }
     setRelationships((prev) => prev.filter((e) => e.id !== id));
+    emitOperation({ type: "delete", target: "relationship", targetId: id });
   };
 
   const updateRelationship = (id, updatedValues) => {
     setRelationships((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updatedValues } : t)),
     );
+    emitOperation({ type: "edit", target: "relationship", targetId: id, data: updatedValues });
   };
 
   return (

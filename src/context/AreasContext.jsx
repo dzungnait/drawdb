@@ -3,6 +3,7 @@ import { createContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Action, ObjectType, defaultBlue } from "../data/constants";
 import { useSelect, useTransform, useUndoRedo } from "../hooks";
+import { emitOperation } from "../utils/operationEmitter";
 
 export const AreasContext = createContext(null);
 
@@ -48,6 +49,12 @@ export default function AreasContextProvider({ children }) {
       ]);
       setRedoStack([]);
     }
+    // Emit after state update - use data or create new area shape
+    setAreas((prev) => {
+      const addedArea = prev[prev.length - 1];
+      if (addedArea) emitOperation({ type: "add", target: "area", data: { area: addedArea } });
+      return prev;
+    });
   };
 
   const deleteArea = (id, addToHistory = true) => {
@@ -75,6 +82,7 @@ export default function AreasContextProvider({ children }) {
         open: false,
       }));
     }
+    emitOperation({ type: "delete", target: "area", targetId: id });
   };
 
   const updateArea = (id, values) => {
@@ -89,6 +97,7 @@ export default function AreasContextProvider({ children }) {
         return t;
       }),
     );
+    emitOperation({ type: "edit", target: "area", targetId: id, data: values });
   };
 
   return (

@@ -4,6 +4,7 @@ import { useUndoRedo } from "../hooks";
 import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
+import { emitOperation } from "../utils/operationEmitter";
 
 export const TypesContext = createContext(null);
 
@@ -51,6 +52,8 @@ export default function TypesContextProvider({ children }) {
       ]);
       setRedoStack([]);
     }
+    const typeToAdd = data?.type ?? { id, name: `type_${types.length}`, fields: [], comment: "" };
+    emitOperation({ type: "add", target: "type", data: { type: typeToAdd } });
   };
 
   const deleteType = (id, addToHistory = true) => {
@@ -75,6 +78,7 @@ export default function TypesContextProvider({ children }) {
     setTypes((prev) =>
       prev.filter((e, i) => (typeof id === "number" ? i !== id : e.id !== id)),
     );
+    emitOperation({ type: "delete", target: "type", targetId: id });
   };
 
   const updateType = (id, values) => {
@@ -85,6 +89,7 @@ export default function TypesContextProvider({ children }) {
         return isMatch ? { ...item, ...values } : item;
       }),
     );
+    emitOperation({ type: "edit", target: "type", targetId: id, data: values });
   };
 
   return (

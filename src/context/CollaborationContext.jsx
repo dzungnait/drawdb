@@ -7,6 +7,7 @@ import {
   sendSelectionChange,
   sendOperation,
 } from "../services/collaboration";
+import { onOperation } from "../utils/operationEmitter";
 
 export const CollaborationContext = createContext(null);
 
@@ -201,6 +202,15 @@ export default function CollaborationProvider({
       return next;
     });
   }, [users]);
+
+  // Subscribe to local operation emitter and broadcast
+  useEffect(() => {
+    return onOperation((op) => {
+      if (isConnectedRef.current && myRole === "editor") {
+        sendOperation(op);
+      }
+    });
+  }, [myRole]);
 
   return (
     <CollaborationContext.Provider
