@@ -112,26 +112,24 @@ export default function CollaborationProvider({
       }
     };
 
-    const onCursorUpdated = ({ socketId, cursor }) => {
-      const user = users.find((u) => u.socketId === socketId);
+    const onCursorUpdated = ({ socketId, cursor, nickname, color }) => {
       setRemoteCursors((prev) => ({
         ...prev,
         [socketId]: {
           ...cursor,
-          nickname: user?.nickname || "Unknown",
-          color: user?.color || "#999",
+          nickname: nickname || "Unknown",
+          color: color || "#999",
         },
       }));
     };
 
-    const onSelectionUpdated = ({ socketId, selection }) => {
-      const user = users.find((u) => u.socketId === socketId);
+    const onSelectionUpdated = ({ socketId, selection, nickname, color }) => {
       setRemoteSelections((prev) => ({
         ...prev,
         [socketId]: {
           ...selection,
-          nickname: user?.nickname || "Unknown",
-          color: user?.color || "#999",
+          nickname: nickname || "Unknown",
+          color: color || "#999",
         },
       }));
     };

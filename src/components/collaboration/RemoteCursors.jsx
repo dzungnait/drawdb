@@ -1,17 +1,18 @@
-import { useCollaboration, useTransform } from "../../hooks";
+import { useCollaboration, useCanvas } from "../../hooks";
 
 export default function RemoteCursors() {
   const { remoteCursors } = useCollaboration() || {};
-  const { transform } = useTransform();
+  const { coords } = useCanvas();
 
   if (!remoteCursors || Object.keys(remoteCursors).length === 0) return null;
 
   return (
     <>
       {Object.entries(remoteCursors).map(([socketId, cursor]) => {
-        // Convert from canvas coords to screen coords
-        const screenX = (cursor.x - transform.pan.x) * transform.zoom;
-        const screenY = (cursor.y - transform.pan.y) * transform.zoom;
+        // Convert from diagram coords to screen coords using canvas context
+        const screenCoords = coords.toScreenSpace({ x: cursor.x, y: cursor.y });
+        const screenX = screenCoords.x;
+        const screenY = screenCoords.y;
 
         return (
           <div
