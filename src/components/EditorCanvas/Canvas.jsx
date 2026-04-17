@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Action,
   Cardinality,
@@ -25,6 +25,7 @@ import {
   useNotes,
   useLayout,
   useSaveState,
+  useCollaboration,
 } from "../../hooks";
 import { useTranslation } from "react-i18next";
 import { useEventListener } from "usehooks-ts";
@@ -58,6 +59,7 @@ export default function Canvas() {
     bulkSelectedElements,
     setBulkSelectedElements,
   } = useSelect();
+  const { broadcastCursor, broadcastSelection, remoteSelections } = useCollaboration() || {};
   const notDragging = {
     id: -1,
     type: ObjectType.NONE,
@@ -103,6 +105,16 @@ export default function Canvas() {
   // this is used to store the element that is clicked on
   // at the moment, and shouldn't be a part of the state
   let elementPointerDown = null;
+
+  // Broadcast selection changes for collaboration
+  useEffect(() => {
+    if (broadcastSelection) {
+      broadcastSelection({
+        type: selectedElement.element ?? 0,
+        id: selectedElement.id ?? null,
+      });
+    }
+  }, [selectedElement.element, selectedElement.id, broadcastSelection]);
 
   const isSameElement = (el1, el2) => {
     return el1.id === el2.id && el1.type === el2.type;
@@ -284,6 +296,14 @@ export default function Canvas() {
     if (selectedElement.open && !layout.sidebar) return;
 
     if (!e.isPrimary) return;
+
+    // Broadcast cursor position for collaboration
+    if (broadcastCursor && pointer?.spaces?.diagram) {
+      broadcastCursor({
+        x: pointer.spaces.diagram.x,
+        y: pointer.spaces.diagram.y,
+      });
+    }
 
     if (panning.isPanning) {
       setTransform((prev) => ({
