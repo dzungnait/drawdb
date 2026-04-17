@@ -18,6 +18,7 @@ export default function CollaborationProvider({
   onRemoteOperation,
   onFullStateUpdate,
   setReadOnly,
+  collabConnectedRef,
 }) {
   const [connected, setConnected] = useState(false);
   const [myRole, setMyRole] = useState(null); // 'editor' | 'viewer'
@@ -63,12 +64,14 @@ export default function CollaborationProvider({
     const onConnect = () => {
       setConnected(true);
       isConnectedRef.current = true;
+      if (collabConnectedRef) collabConnectedRef.current = true;
       connectToRoom(designId, sessionId);
     };
 
     const onDisconnect = () => {
       setConnected(false);
       isConnectedRef.current = false;
+      if (collabConnectedRef) collabConnectedRef.current = false;
     };
 
     const onRoomJoined = ({ role, users: roomUsers, nickname, color }) => {

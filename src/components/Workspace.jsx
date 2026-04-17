@@ -80,6 +80,7 @@ export default function WorkSpace() {
 
   // Flag to prevent re-broadcasting remote operations
   const isRemoteOpRef = useRef(false);
+  const collabConnectedRef = useRef(false);
 
   const handleRemoteOperation = useCallback((op) => {
     isRemoteOpRef.current = true;
@@ -375,13 +376,18 @@ export default function WorkSpace() {
       };
       
       try {
+        // When collaboration is active, skip version check to avoid conflicts
+        // (real-time sync handles consistency; last write wins for persistence)
+        const versionToSend = collabConnectedRef.current ? undefined : currentVersion;
+        const sessionToSend = collabConnectedRef.current ? undefined : sessionId;
+        
         // Save with version control
         await patch(
           designId, 
           SHARE_FILENAME, 
           JSON.stringify(shareData),
-          currentVersion,
-          sessionId // Use sessionId as lastModifiedBy
+          versionToSend,
+          sessionToSend
         );
         setSaveState(State.SAVED);
         setLastSaved(new Date().toLocaleString());
@@ -939,6 +945,7 @@ export default function WorkSpace() {
       onRemoteOperation={handleRemoteOperation}
       onFullStateUpdate={handleFullStateUpdate}
       setReadOnly={setCollabReadOnly}
+      collabConnectedRef={collabConnectedRef}
     >
     <div className="h-full flex flex-col overflow-hidden theme">
       <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave, pinProtected, setPinProtected }}>
