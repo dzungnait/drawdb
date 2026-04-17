@@ -36,11 +36,30 @@ export function disconnectFromRoom() {
   }
 }
 
+// Offline operation queue
+const offlineQueue = [];
+
 export function sendOperation(op) {
   const s = getSocket();
   if (s.connected) {
     s.emit("operation", op);
+  } else {
+    // Queue operations while offline
+    offlineQueue.push(op);
   }
+}
+
+export function flushOfflineQueue() {
+  const s = getSocket();
+  if (!s.connected || offlineQueue.length === 0) return;
+  const ops = offlineQueue.splice(0);
+  for (const op of ops) {
+    s.emit("operation", op);
+  }
+}
+
+export function getOfflineQueueSize() {
+  return offlineQueue.length;
 }
 
 export function sendCursorMove(cursor) {
@@ -61,6 +80,20 @@ export function requestEditSlot() {
   const s = getSocket();
   if (s.connected) {
     s.emit("request-edit-slot");
+  }
+}
+
+export function requestFullState() {
+  const s = getSocket();
+  if (s.connected) {
+    s.emit("request-full-state");
+  }
+}
+
+export function sendFullStateForPeer(targetSocketId, data) {
+  const s = getSocket();
+  if (s.connected) {
+    s.emit("full-state-for-peer", { targetSocketId, data });
   }
 }
 

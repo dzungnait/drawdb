@@ -101,6 +101,7 @@ const en = {
     online: "online",
     view_mode_collab: "View only — {{count}}/15 editor slots in use",
     request_edit_slot: "Request edit slot",
+    reconnecting: "Reconnecting...",
     zoom: "Zoom",
     add_table: "Add table",
     add_area: "Add area",

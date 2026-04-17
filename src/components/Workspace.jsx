@@ -32,6 +32,7 @@ import CollaborationProvider from "../context/CollaborationContext";
 import PresenceBar from "./collaboration/PresenceBar";
 import CollaborationBanner from "./collaboration/CollaborationBanner";
 import RemoteCursors from "./collaboration/RemoteCursors";
+import ConnectionStatus from "./collaboration/ConnectionStatus";
 
 const SIDEPANEL_MIN_WIDTH = 384;
 
@@ -196,7 +197,8 @@ export default function WorkSpace() {
       if (data.tables) setTables(data.tables);
       if (data.relationships) setRelationships(data.relationships);
       if (data.notes) setNotes(data.notes);
-      if (data.areas) setAreas(data.areas || data.subjectAreas || []);
+      const areaData = data.areas || data.subjectAreas;
+      if (areaData) setAreas(areaData);
       if (data.types) setTypes(data.types);
       if (data.enums) setEnums(data.enums);
     } finally {
@@ -207,6 +209,16 @@ export default function WorkSpace() {
   const setCollabReadOnly = useCallback((readOnly) => {
     setLayout((prev) => ({ ...prev, readOnly }));
   }, [setLayout]);
+
+  const getLocalState = useCallback(() => ({
+    tables,
+    relationships,
+    notes,
+    subjectAreas: areas,
+    database,
+    types,
+    enums,
+  }), [tables, relationships, notes, areas, database, types, enums]);
 
   const handleResize = (e) => {
     if (!resize) return;
@@ -946,6 +958,7 @@ export default function WorkSpace() {
       onFullStateUpdate={handleFullStateUpdate}
       setReadOnly={setCollabReadOnly}
       collabConnectedRef={collabConnectedRef}
+      getLocalState={getLocalState}
     >
     <div className="h-full flex flex-col overflow-hidden theme">
       <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave, pinProtected, setPinProtected }}>
@@ -986,6 +999,7 @@ export default function WorkSpace() {
             <RemoteCursors />
           </CanvasContextProvider>
           <CollaborationBanner />
+          <ConnectionStatus />
           {version && (
             <div className="absolute right-8 top-2 space-x-2">
               <Button

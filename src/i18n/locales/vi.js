@@ -99,6 +99,7 @@ const vi = {
     online: "trực tuyến",
     view_mode_collab: "Chỉ xem — {{count}}/15 slot biên tập đang sử dụng",
     request_edit_slot: "Yêu cầu slot biên tập",
+    reconnecting: "Đang kết nối lại...",
     zoom: "Phóng to",
     add_table: "Thêm bảng",
     add_area: "Thêm vùng",

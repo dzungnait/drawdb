@@ -6,6 +6,10 @@ import {
   sendCursorMove,
   sendSelectionChange,
   sendOperation,
+  requestFullState,
+  sendFullStateForPeer,
+  flushOfflineQueue,
+  getOfflineQueueSize,
 } from "../services/collaboration";
 import { onOperation } from "../utils/operationEmitter";
 
@@ -19,8 +23,10 @@ export default function CollaborationProvider({
   onFullStateUpdate,
   setReadOnly,
   collabConnectedRef,
+  getLocalState,
 }) {
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [myRole, setMyRole] = useState(null); // 'editor' | 'viewer'
   const [myNickname, setMyNickname] = useState("");
   const [myColor, setMyColor] = useState("");
@@ -28,6 +34,12 @@ export default function CollaborationProvider({
   const [remoteCursors, setRemoteCursors] = useState({}); // socketId -> { x, y, nickname, color }
   const [remoteSelections, setRemoteSelections] = useState({}); // socketId -> { type, id, nickname, color }
   const isConnectedRef = useRef(false);
+
+  // Track if we've connected before (to detect reconnections vs first connect)
+  const hasConnectedRef = useRef(false);
+  // Ref to getLocalState so socket handlers always see latest
+  const getLocalStateRef = useRef(getLocalState);
+  getLocalStateRef.current = getLocalState;
 
   // Throttle cursor broadcasts
   const cursorThrottleRef = useRef(null);
@@ -62,16 +74,38 @@ export default function CollaborationProvider({
     const socket = getSocket();
 
     const onConnect = () => {
+      const isReconnect = hasConnectedRef.current;
       setConnected(true);
+      setReconnecting(false);
       isConnectedRef.current = true;
+      hasConnectedRef.current = true;
       if (collabConnectedRef) collabConnectedRef.current = true;
+
+      // (Re)join room — server preserves nickname/color for same sessionId
       connectToRoom(designId, sessionId);
+
+      if (isReconnect) {
+        // Flush any operations queued while offline
+        flushOfflineQueue();
+        // Request full state from a peer to catch up on missed changes
+        requestFullState();
+        console.log("🔄 Reconnected — rejoining room and requesting state sync");
+      }
     };
 
-    const onDisconnect = () => {
+    const onDisconnect = (reason) => {
       setConnected(false);
       isConnectedRef.current = false;
       if (collabConnectedRef) collabConnectedRef.current = false;
+      // If the server disconnected us, Socket.IO will auto-reconnect
+      // If we disconnected manually, it won't
+      if (reason !== "io client disconnect") {
+        setReconnecting(true);
+      }
+      // Clear remote cursors/selections on disconnect
+      setRemoteCursors({});
+      setRemoteSelections({});
+      console.log(`⚡ Disconnected: ${reason}`);
     };
 
     const onRoomJoined = ({ role, users: roomUsers, nickname, color }) => {
@@ -158,6 +192,16 @@ export default function CollaborationProvider({
       console.warn("Collaboration error:", message);
     };
 
+    // When another peer reconnects and asks us for our current state
+    const onRequestStateFromPeer = ({ requestingSocketId }) => {
+      if (getLocalStateRef.current) {
+        const state = getLocalStateRef.current();
+        if (state) {
+          sendFullStateForPeer(requestingSocketId, state);
+        }
+      }
+    };
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room-joined", onRoomJoined);
@@ -168,6 +212,7 @@ export default function CollaborationProvider({
     socket.on("selection-updated", onSelectionUpdated);
     socket.on("role-changed", onRoleChanged);
     socket.on("full-state-update", onFullState);
+    socket.on("request-state-from-peer", onRequestStateFromPeer);
     socket.on("error", onError);
 
     socket.connect();
@@ -183,6 +228,7 @@ export default function CollaborationProvider({
       socket.off("selection-updated", onSelectionUpdated);
       socket.off("role-changed", onRoleChanged);
       socket.off("full-state-update", onFullState);
+      socket.off("request-state-from-peer", onRequestStateFromPeer);
       socket.off("error", onError);
       disconnectFromRoom();
     };
@@ -219,6 +265,7 @@ export default function CollaborationProvider({
     <CollaborationContext.Provider
       value={{
         connected,
+        reconnecting,
         myRole,
         myNickname,
         myColor,
