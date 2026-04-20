@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import {
   Action,
   Cardinality,
@@ -105,6 +105,31 @@ export default function Canvas() {
   // this is used to store the element that is clicked on
   // at the moment, and shouldn't be a part of the state
   let elementPointerDown = null;
+
+  // RAF ref for throttling drag updates to animation frames
+  const rafRef = useRef(null);
+
+  // O(1) table lookup map for Relationship components
+  const tableMap = useMemo(() => {
+    const map = new Map();
+    for (const t of tables) map.set(t.id, t);
+    return map;
+  }, [tables]);
+
+  // Viewport culling margin (extra pixels outside viewBox to keep rendered)
+  const CULL_MARGIN = 200;
+
+  const isInViewport = useCallback(
+    (x, y, w, h) => {
+      return (
+        x + w >= viewBox.left - CULL_MARGIN &&
+        x <= viewBox.left + viewBox.width + CULL_MARGIN &&
+        y + h >= viewBox.top - CULL_MARGIN &&
+        y <= viewBox.top + viewBox.height + CULL_MARGIN
+      );
+    },
+    [viewBox.left, viewBox.top, viewBox.width, viewBox.height],
+  );
 
   // Broadcast selection changes for collaboration
   useEffect(() => {
@@ -332,27 +357,34 @@ export default function Canvas() {
     }
 
     if (isDragging()) {
-      const { x: mainElementFinalX, y: mainElementFinalY } =
-        coordinatesAfterSnappingToGrid({
-          x: pointer.spaces.diagram.x - dragging.grabOffset.x,
-          y: pointer.spaces.diagram.y - dragging.grabOffset.y,
-        });
+      // Throttle drag updates to animation frames for performance
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
 
-      const { currentCoords } = bulkSelectedElements.find((el) =>
-        isSameElement(el, dragging),
-      );
+        const { x: mainElementFinalX, y: mainElementFinalY } =
+          coordinatesAfterSnappingToGrid({
+            x: pointer.spaces.diagram.x - dragging.grabOffset.x,
+            y: pointer.spaces.diagram.y - dragging.grabOffset.y,
+          });
 
-      const deltaX = mainElementFinalX - currentCoords.x;
-      const deltaY = mainElementFinalY - currentCoords.y;
+        const { currentCoords } = bulkSelectedElements.find((el) =>
+          isSameElement(el, dragging),
+        );
 
-      const newBulkSelectedElements = [];
-      bulkSelectedElements.forEach((el) => {
-        const elementFinalCoords = {
-          x: el.currentCoords.x + deltaX,
-          y: el.currentCoords.y + deltaY,
-        };
-        if (el.type === ObjectType.TABLE) {
-          updateTable(el.id, { ...elementFinalCoords });
+        const deltaX = mainElementFinalX - currentCoords.x;
+        const deltaY = mainElementFinalY - currentCoords.y;
+
+        if (deltaX === 0 && deltaY === 0) return;
+
+        const newBulkSelectedElements = [];
+        bulkSelectedElements.forEach((el) => {
+          const elementFinalCoords = {
+            x: el.currentCoords.x + deltaX,
+            y: el.currentCoords.y + deltaY,
+          };
+          if (el.type === ObjectType.TABLE) {
+            updateTable(el.id, { ...elementFinalCoords });
         }
         if (el.type === ObjectType.AREA) {
           updateArea(el.id, { ...elementFinalCoords });
@@ -367,6 +399,7 @@ export default function Canvas() {
       });
 
       setBulkSelectedElements(newBulkSelectedElements);
+      }); // end requestAnimationFrame
       return;
     }
 
@@ -508,6 +541,12 @@ export default function Canvas() {
     if (selectedElement.open && !layout.sidebar) return;
 
     if (!e.isPrimary) return;
+
+    // Cancel any pending drag rAF
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
 
     if (didDrag()) {
       setUndoStack((prev) => [
@@ -750,25 +789,29 @@ export default function Canvas() {
               />
             </>
           )}
-          {areas.map((a) => (
-            <Area
-              key={a.id}
-              data={a}
-              setResize={setAreaResize}
-              setInitDimensions={setAreaInitDimensions}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: a,
-                  type: ObjectType.AREA,
-                };
-              }}
-            />
-          ))}
+          {areas.map((a) =>
+            isInViewport(a.x, a.y, a.width, a.height) ? (
+              <Area
+                key={a.id}
+                data={a}
+                setResize={setAreaResize}
+                setInitDimensions={setAreaInitDimensions}
+                onPointerDown={() => {
+                  elementPointerDown = {
+                    element: a,
+                    type: ObjectType.AREA,
+                  };
+                }}
+              />
+            ) : null,
+          )}
           {relationships.map((e) => (
-            <Relationship key={e.id} data={e} />
+            <Relationship key={e.id} data={e} tableMap={tableMap} />
           ))}
-          {tables.map((table) => (
-            <Table
+          {tables.map((table) => {
+            const h = getTableHeight(table, settings.tableWidth, settings.showComments);
+            return isInViewport(table.x, table.y, settings.tableWidth, h) ? (
+              <Table
               key={table.id}
               tableData={table}
               setHoveredTable={setHoveredTable}
@@ -781,7 +824,8 @@ export default function Canvas() {
                 };
               }}
             />
-          ))}
+            ) : null;
+          })}
           {linking && (
             <path
               d={`M ${linkingLine.startX} ${linkingLine.startY} L ${linkingLine.endX} ${linkingLine.endY}`}
@@ -790,18 +834,20 @@ export default function Canvas() {
               className="pointer-events-none touch-none"
             />
           )}
-          {notes.map((n) => (
-            <Note
-              key={n.id}
-              data={n}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: n,
-                  type: ObjectType.NOTE,
-                };
-              }}
-            />
-          ))}
+          {notes.map((n) =>
+            isInViewport(n.x, n.y, n.width ?? noteWidth, n.height) ? (
+              <Note
+                key={n.id}
+                data={n}
+                onPointerDown={() => {
+                  elementPointerDown = {
+                    element: n,
+                    type: ObjectType.NOTE,
+                  };
+                }}
+              />
+            ) : null,
+          )}
           {bulkSelectRect.show && (
             <rect
               {...getRectFromEndpoints(bulkSelectRect)}

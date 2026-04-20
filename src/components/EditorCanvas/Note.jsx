@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { memo, useMemo, useState, useRef, useEffect } from "react";
 import { Action, ObjectType, Tab, State } from "../../data/constants";
 import { Input, Button, Popover } from "@douyinfe/semi-ui";
 import ColorPicker from "../EditorSidePanel/ColorPicker";
@@ -21,7 +21,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { noteWidth, noteRadius, noteFold } from "../../data/constants";
 
-export default function Note({ data, onPointerDown }) {
+export default memo(function Note({ data, onPointerDown }) {
   const [editField, setEditField] = useState({});
   const [hovered, setHovered] = useState(false);
   const [resizing, setResizing] = useState(false);
@@ -542,4 +542,4 @@ export default function Note({ data, onPointerDown }) {
       </foreignObject>
     </g>
   );
-}
+});

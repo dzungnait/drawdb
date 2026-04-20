@@ -1,23 +1,22 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { memo, useMemo, useRef, useState, useEffect } from "react";
 import { Cardinality, ObjectType, Tab } from "../../data/constants";
 import { calcPath } from "../../utils/calcPath";
-import { useDiagram, useSettings, useLayout, useSelect } from "../../hooks";
+import { useSettings, useLayout, useSelect } from "../../hooks";
 import { useTranslation } from "react-i18next";
 import { SideSheet } from "@douyinfe/semi-ui";
 import RelationshipInfo from "../EditorSidePanel/RelationshipsTab/RelationshipInfo";
 
 const labelFontSize = 16;
 
-export default function Relationship({ data }) {
+export default memo(function Relationship({ data, tableMap }) {
   const { settings } = useSettings();
-  const { tables } = useDiagram();
   const { layout } = useLayout();
   const { selectedElement, setSelectedElement } = useSelect();
   const { t } = useTranslation();
 
   const pathValues = useMemo(() => {
-    const startTable = tables.find((t) => t.id === data.startTableId);
-    const endTable = tables.find((t) => t.id === data.endTableId);
+    const startTable = tableMap.get(data.startTableId);
+    const endTable = tableMap.get(data.endTableId);
 
     if (!startTable || !endTable || startTable.hidden || endTable.hidden)
       return null;
@@ -34,7 +33,7 @@ export default function Relationship({ data }) {
       },
       endTable: { x: endTable.x, y: endTable.y, comment: endTable.comment },
     };
-  }, [tables, data]);
+  }, [tableMap, data]);
 
   const pathRef = useRef();
   const labelRef = useRef();
@@ -186,7 +185,7 @@ export default function Relationship({ data }) {
       </SideSheet>
     </>
   );
-}
+});
 
 function CardinalityLabel({ x, y, text, r = 12, padding = 14 }) {
   const [textWidth, setTextWidth] = useState(0);

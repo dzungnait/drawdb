@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   Tab,
   ObjectType,
@@ -24,7 +24,7 @@ import { isRtl } from "../../i18n/utils/rtl";
 import i18n from "../../i18n/i18n";
 import { getCommentHeight, getTableHeight } from "../../utils/utils";
 
-export default function Table({
+export default memo(function Table({
   tableData,
   onPointerDown,
   setHoveredTable,
@@ -67,10 +67,9 @@ export default function Table({
     [settings.mode],
   );
 
-  const height = getTableHeight(
-    tableData,
-    settings.tableWidth,
-    settings.showComments,
+  const height = useMemo(
+    () => getTableHeight(tableData, settings.tableWidth, settings.showComments),
+    [tableData.fields.length, tableData.comment, settings.tableWidth, settings.showComments],
   );
 
   // Memoize comment height so field() doesn't re-measure the DOM on every render
@@ -529,4 +528,4 @@ export default function Table({
       </div>
     );
   }
-}
+});

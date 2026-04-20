@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Button, Popover, Input } from "@douyinfe/semi-ui";
 import ColorPicker from "../EditorSidePanel/ColorPicker";
 import {
@@ -20,7 +20,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useHover } from "usehooks-ts";
 
-export default function Area({
+export default memo(function Area({
   data,
   onPointerDown,
   setResize,
@@ -265,7 +265,7 @@ export default function Area({
       )}
     </g>
   );
-}
+});
 
 function EditPopoverContent({ data }) {
   const [editField, setEditField] = useState({});
