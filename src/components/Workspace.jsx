@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ControlPanel from "./EditorHeader/ControlPanel";
 import Canvas from "./EditorCanvas/Canvas";
 import { CanvasContextProvider } from "../context/CanvasContext";
@@ -28,6 +28,11 @@ import { isRtl } from "../i18n/utils/rtl";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { get, patch, SHARE_FILENAME, create, createSnapshot, getCurrentVersion, verifyPin } from "../api/gists";
 import { nanoid } from "nanoid";
+import CollaborationProvider from "../context/CollaborationContext";
+import PresenceBar from "./collaboration/PresenceBar";
+import CollaborationBanner from "./collaboration/CollaborationBanner";
+import RemoteCursors from "./collaboration/RemoteCursors";
+import ConnectionStatus from "./collaboration/ConnectionStatus";
 
 const SIDEPANEL_MIN_WIDTH = 384;
 
@@ -73,6 +78,148 @@ export default function WorkSpace() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   let [searchParams, setSearchParams] = useSearchParams();
+
+  // Flag to prevent re-broadcasting remote operations
+  const isRemoteOpRef = useRef(false);
+  const collabConnectedRef = useRef(false);
+
+  const handleRemoteOperation = useCallback((op) => {
+    isRemoteOpRef.current = true;
+    try {
+      const { type, target, targetId, data } = op;
+      if (target === "table") {
+        if (type === "add" && data.table) {
+          setTables((prev) => [...prev, data.table]);
+        } else if (type === "delete") {
+          setTables((prev) => prev.filter((t) => t.id !== targetId));
+          setRelationships((prev) =>
+            prev.filter((r) => r.startTableId !== targetId && r.endTableId !== targetId)
+          );
+        } else if (type === "edit") {
+          setTables((prev) =>
+            prev.map((t) => (t.id === targetId ? { ...t, ...data } : t))
+          );
+        } else if (type === "move") {
+          setTables((prev) =>
+            prev.map((t) => (t.id === targetId ? { ...t, x: data.x, y: data.y } : t))
+          );
+        } else if (type === "edit-field") {
+          const { fieldId, ...fieldValues } = data;
+          setTables((prev) =>
+            prev.map((t) =>
+              t.id === targetId
+                ? {
+                    ...t,
+                    fields: t.fields.map((f) =>
+                      f.id === fieldId ? { ...f, ...fieldValues } : f,
+                    ),
+                  }
+                : t,
+            )
+          );
+        } else if (type === "delete-field") {
+          setTables((prev) =>
+            prev.map((t) =>
+              t.id === targetId
+                ? { ...t, fields: t.fields.filter((f) => f.id !== data.fieldId) }
+                : t,
+            )
+          );
+        }
+      } else if (target === "relationship") {
+        if (type === "add" && data.relationship) {
+          setRelationships((prev) => [...prev, data.relationship]);
+        } else if (type === "delete") {
+          setRelationships((prev) => prev.filter((r) => r.id !== targetId));
+        } else if (type === "edit") {
+          setRelationships((prev) =>
+            prev.map((r) => (r.id === targetId ? { ...r, ...data } : r))
+          );
+        }
+      } else if (target === "note") {
+        if (type === "add" && data.note) {
+          setNotes((prev) => [...prev, data.note]);
+        } else if (type === "delete") {
+          setNotes((prev) => prev.filter((_, i) => i !== targetId));
+        } else if (type === "edit") {
+          setNotes((prev) =>
+            prev.map((n, i) => (i === targetId ? { ...n, ...data } : n))
+          );
+        } else if (type === "move") {
+          setNotes((prev) =>
+            prev.map((n, i) => (i === targetId ? { ...n, x: data.x, y: data.y } : n))
+          );
+        }
+      } else if (target === "area") {
+        if (type === "add" && data.area) {
+          setAreas((prev) => [...prev, data.area]);
+        } else if (type === "delete") {
+          setAreas((prev) => prev.filter((_, i) => i !== targetId));
+        } else if (type === "edit") {
+          setAreas((prev) =>
+            prev.map((a, i) => (i === targetId ? { ...a, ...data } : a))
+          );
+        } else if (type === "move") {
+          setAreas((prev) =>
+            prev.map((a, i) => (i === targetId ? { ...a, x: data.x, y: data.y } : a))
+          );
+        }
+      } else if (target === "type") {
+        if (type === "add" && data.type) {
+          setTypes((prev) => [...prev, data.type]);
+        } else if (type === "delete") {
+          setTypes((prev) => prev.filter((_, i) => i !== targetId));
+        } else if (type === "edit") {
+          setTypes((prev) =>
+            prev.map((t, i) => (i === targetId ? { ...t, ...data } : t))
+          );
+        }
+      } else if (target === "enum") {
+        if (type === "add" && data.enum) {
+          setEnums((prev) => [...prev, data.enum]);
+        } else if (type === "delete") {
+          setEnums((prev) => prev.filter((_, i) => i !== targetId));
+        } else if (type === "edit") {
+          setEnums((prev) =>
+            prev.map((e, i) => (i === targetId ? { ...e, ...data } : e))
+          );
+        }
+      }
+    } finally {
+      // Reset flag after a tick to allow state to settle
+      setTimeout(() => { isRemoteOpRef.current = false; }, 0);
+    }
+  }, [setTables, setRelationships, setNotes, setAreas, setTypes, setEnums]);
+
+  const handleFullStateUpdate = useCallback((data) => {
+    isRemoteOpRef.current = true;
+    try {
+      if (data.tables) setTables(data.tables);
+      if (data.relationships) setRelationships(data.relationships);
+      if (data.notes) setNotes(data.notes);
+      const areaData = data.areas || data.subjectAreas;
+      if (areaData) setAreas(areaData);
+      if (data.types) setTypes(data.types);
+      if (data.enums) setEnums(data.enums);
+    } finally {
+      setTimeout(() => { isRemoteOpRef.current = false; }, 0);
+    }
+  }, [setTables, setRelationships, setNotes, setAreas, setTypes, setEnums]);
+
+  const setCollabReadOnly = useCallback((readOnly) => {
+    setLayout((prev) => ({ ...prev, readOnly }));
+  }, [setLayout]);
+
+  const getLocalState = useCallback(() => ({
+    tables,
+    relationships,
+    notes,
+    subjectAreas: areas,
+    database,
+    types,
+    enums,
+  }), [tables, relationships, notes, areas, database, types, enums]);
+
   const handleResize = (e) => {
     if (!resize) return;
     const w = isRtl(i18n.language) ? window.innerWidth - e.clientX : e.clientX;
@@ -183,7 +330,6 @@ export default function WorkSpace() {
       database: database,
       ...(databases[database].hasTypes && { types: types || [] }),
       ...(databases[database].hasEnums && { enums: enums || [] }),
-      transform: transform,
     };
 
     const newDesignId = await create(SHARE_FILENAME, JSON.stringify(initialData), pendingDbPin || null);
@@ -198,7 +344,7 @@ export default function WorkSpace() {
     }
     
     return actualId;
-  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, transform, pendingDbPin, setSearchParams, setGistId]);
+  }, [gistId, title, tables, relationships, notes, areas, database, types, enums, pendingDbPin, setSearchParams, setGistId]);
 
   const syncToServer = useCallback(async () => {
     if (!sessionId) {
@@ -220,7 +366,6 @@ export default function WorkSpace() {
           database: database,
           ...(databases[database].hasTypes && { types: types }),
           ...(databases[database].hasEnums && { enums: enums }),
-          transform: transform,
         };
         await patch(designId, SHARE_FILENAME, JSON.stringify(shareData));
         setSaveState(State.SAVED);
@@ -240,17 +385,21 @@ export default function WorkSpace() {
         database: database,
         ...(databases[database].hasTypes && { types: types }),
         ...(databases[database].hasEnums && { enums: enums }),
-        transform: transform,
       };
       
       try {
+        // When collaboration is active, skip version check to avoid conflicts
+        // (real-time sync handles consistency; last write wins for persistence)
+        const versionToSend = collabConnectedRef.current ? undefined : currentVersion;
+        const sessionToSend = collabConnectedRef.current ? undefined : sessionId;
+        
         // Save with version control
         await patch(
           designId, 
           SHARE_FILENAME, 
           JSON.stringify(shareData),
-          currentVersion,
-          sessionId // Use sessionId as lastModifiedBy
+          versionToSend,
+          sessionToSend
         );
         setSaveState(State.SAVED);
         setLastSaved(new Date().toLocaleString());
@@ -284,7 +433,6 @@ export default function WorkSpace() {
     database,
     types,
     enums,
-    transform,
     setSaveState,
     sessionId,
     ensureDesignOnServer,
@@ -777,6 +925,7 @@ export default function WorkSpace() {
   // Trigger autosave when content changes (if autosave is enabled)
   useEffect(() => {
     if (layout.readOnly) return;
+    if (isRemoteOpRef.current) return; // Don't autosave for remote operations
     const hasContent =
       tables?.length > 0 ||
       areas?.length > 0 ||
@@ -829,32 +978,33 @@ export default function WorkSpace() {
     initializeEditor();
   }, [initializeEditor]); // Run when URL params change or component mounts
 
-  // Heartbeat - keep lock alive every 5 minutes
-  useEffect(() => {
-    if (!gistId || !sessionId) return;
-
-    const heartbeatInterval = setInterval(async () => {
-      try {
-        await heartbeat(gistId, sessionId);
-      } catch (error) {
-        console.warn("Heartbeat failed:", error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => clearInterval(heartbeatInterval);
-  }, [gistId, sessionId]);
-
   return (
+    <CollaborationProvider
+      designId={gistId}
+      sessionId={sessionId}
+      onRemoteOperation={handleRemoteOperation}
+      onFullStateUpdate={handleFullStateUpdate}
+      setReadOnly={setCollabReadOnly}
+      collabConnectedRef={collabConnectedRef}
+      getLocalState={getLocalState}
+    >
     <div className="h-full flex flex-col overflow-hidden theme">
       <IdContext.Provider value={{ gistId, setGistId, version, setVersion, syncToServer, createManualSnapshot, manualSave, pinProtected, setPinProtected }}>
-        <ControlPanel
-          diagramId={id}
-          setDiagramId={setId}
-          title={title}
-          setTitle={setTitle}
-          lastSaved={lastSaved}
-          setLastSaved={setLastSaved}
-        />
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <ControlPanel
+              diagramId={id}
+              setDiagramId={setId}
+              title={title}
+              setTitle={setTitle}
+              lastSaved={lastSaved}
+              setLastSaved={setLastSaved}
+            />
+          </div>
+          <div className="pr-3 pt-1">
+            <PresenceBar />
+          </div>
+        </div>
       </IdContext.Provider>
       <div
         className="flex h-full overflow-y-auto"
@@ -874,7 +1024,10 @@ export default function WorkSpace() {
         <div className="relative w-full h-full overflow-hidden">
           <CanvasContextProvider className="h-full w-full">
             <Canvas saveState={saveState} setSaveState={setSaveState} />
+            <RemoteCursors />
           </CanvasContextProvider>
+          <CollaborationBanner />
+          <ConnectionStatus />
           {version && (
             <div className="absolute right-8 top-2 space-x-2">
               <Button
@@ -1061,5 +1214,6 @@ export default function WorkSpace() {
         {t("restore_warning")}
       </Modal>
     </div>
+    </CollaborationProvider>
   );
 }

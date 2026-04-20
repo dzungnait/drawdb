@@ -16,6 +16,7 @@ import {
   useSaveState,
   useTransform,
   useSettings,
+  useCollaboration,
 } from "../../hooks";
 import { useTranslation } from "react-i18next";
 import { noteWidth, noteRadius, noteFold } from "../../data/constants";
@@ -40,6 +41,11 @@ export default function Note({ data, onPointerDown }) {
     setBulkSelectedElements,
   } = useSelect();
   const initialColorRef = useRef(data.color);
+  const { entityLocks } = useCollaboration() || {};
+  const remoteLock = useMemo(() => {
+    if (!entityLocks) return null;
+    return entityLocks[`note:${data.id}`] || null;
+  }, [entityLocks, data.id]);
 
   const handleColorPick = (color) => {
     setUndoStack((prev) => {
@@ -391,7 +397,15 @@ export default function Note({ data, onPointerDown }) {
         height={data.height}
         onPointerDown={onPointerDown}
       >
-        <div className="text-gray-900 select-none w-full h-full cursor-move px-3 py-2">
+        <div className="text-gray-900 select-none w-full h-full cursor-move px-3 py-2 relative">
+          {remoteLock && (
+            <div
+              className="absolute -top-5 right-0 px-1.5 py-0.5 rounded text-[9px] font-medium text-white whitespace-nowrap z-10"
+              style={{ backgroundColor: remoteLock.color }}
+            >
+              ✏️ {remoteLock.nickname}
+            </div>
+          )}
           <div className="flex justify-between gap-1 w-full">
             <label
               htmlFor={`note_${data.id}`}

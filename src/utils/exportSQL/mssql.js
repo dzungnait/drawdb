@@ -1,4 +1,4 @@
-import { parseDefault, escapeQuotes } from "./shared";
+import { parseDefault, escapeQuotes, buildTableMap } from "./shared";
 
 import { dbToTypes } from "../../data/datatypes";
 import { DB } from "../../data/constants";
@@ -92,10 +92,12 @@ export function toMSSQL(diagram) {
     })
     .join("\n");
 
+  const tableMap = buildTableMap(diagram.tables);
+
   const referencesSql = diagram.references
     .map((r) => {
-      const startTable = diagram.tables.find((t) => t.id === r.startTableId);
-      const endTable = diagram.tables.find((t) => t.id === r.endTableId);
+      const startTable = tableMap.get(r.startTableId);
+      const endTable = tableMap.get(r.endTableId);
 
       if (!startTable || !endTable) return "";
 

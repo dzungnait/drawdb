@@ -1,6 +1,6 @@
 import { DB } from "../../data/constants";
 import { dbToTypes, defaultTypes } from "../../data/datatypes";
-import { escapeQuotes, getInlineFK, parseDefault } from "./shared";
+import { escapeQuotes, getInlineFK, parseDefault, buildTableMap, buildForeignKeyStatements } from "./shared";
 
 export function getJsonType(f) {
   if (!Object.keys(defaultTypes).includes(f.type)) {
@@ -227,22 +227,7 @@ export function jsonToMySQL(obj) {
           )
           .join("\n")}`}`,
     )
-    .join("\n")}\n${obj.references
-    .map((r) => {
-      const { name: startName, fields: startFields } = obj.tables.find(
-        (t) => t.id === r.startTableId,
-      );
-
-      const { name: endName, fields: endFields } = obj.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE \`${startName}\`\nADD FOREIGN KEY(\`${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }\`) REFERENCES \`${endName}\`(\`${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }\`)\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
-    })
-    .join("\n")}`;
+    .join("\n")}\n${buildForeignKeyStatements(obj.references, obj.tables, "\`", "\`")}`;
 }
 
 export function jsonToPostgreSQL(obj) {
@@ -334,22 +319,7 @@ export function jsonToPostgreSQL(obj) {
           )
           .join("\n")}`,
     )
-    .join("\n")}\n${obj.references
-    .map((r) => {
-      const { name: startName, fields: startFields } = obj.tables.find(
-        (t) => t.id === r.startTableId,
-      );
-
-      const { name: endName, fields: endFields } = obj.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE "${startName}"\nADD FOREIGN KEY("${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }") REFERENCES "${endName}"("${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }")\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
-    })
-    .join("\n")}`;
+    .join("\n")}\n${buildForeignKeyStatements(obj.references, obj.tables, '"', '"')}`;
 }
 
 export function getSQLiteType(field) {
@@ -472,22 +442,7 @@ export function jsonToMariaDB(obj) {
           )
           .join("\n")}`}`,
     )
-    .join("\n")}\n${obj.references
-    .map((r) => {
-      const { name: startName, fields: startFields } = obj.tables.find(
-        (t) => t.id === r.startTableId,
-      );
-
-      const { name: endName, fields: endFields } = obj.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE \`${startName}\`\nADD FOREIGN KEY(\`${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }\`) REFERENCES \`${endName}\`(\`${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }\`)\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
-    })
-    .join("\n")}`;
+    .join("\n")}\n${buildForeignKeyStatements(obj.references, obj.tables, "\`", "\`")}`;
 }
 
 export function jsonToSQLServer(obj) {
@@ -544,22 +499,7 @@ export function jsonToSQLServer(obj) {
           )
           .join("")}`,
     )
-    .join("\n")}\n${obj.references
-    .map((r) => {
-      const { name: startName, fields: startFields } = obj.tables.find(
-        (t) => t.id === r.startTableId,
-      );
-
-      const { name: endName, fields: endFields } = obj.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE [${startName}]\nADD FOREIGN KEY([${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }]) REFERENCES [${endName}]([${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }])\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};\nGO`;
-    })
-    .join("\n")}`;
+    .join("\n")}\n${buildForeignKeyStatements(obj.references, obj.tables, "[", "]", "\nGO")}`;
 }
 
 export function jsonToOracleSQL(obj) {
@@ -617,20 +557,19 @@ export function jsonToOracleSQL(obj) {
           )
           .join("\n")}`,
     )
-    .join("\n\n")}\n${obj.references
+    .join("\n\n")}\n${(() => {
+  const tableMap = buildTableMap(obj.tables);
+  return obj.references
     .map((r) => {
-      const { name: startName, fields: startFields } = obj.tables.find(
-        (t) => t.id === r.startTableId,
-      );
-
-      const { name: endName, fields: endFields } = obj.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE "${startName}"\nADD CONSTRAINT "${r.name}" FOREIGN KEY ("${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }") REFERENCES "${endName}"("${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }");`;
+      const startTable = tableMap.get(r.startTableId);
+      const endTable = tableMap.get(r.endTableId);
+      if (!startTable || !endTable) return "";
+      const startField = startTable.fields.find((f) => f.id === r.startFieldId);
+      const endField = endTable.fields.find((f) => f.id === r.endFieldId);
+      if (!startField || !endField) return "";
+      return `ALTER TABLE "${startTable.name}"\nADD CONSTRAINT "${r.name}" FOREIGN KEY ("${startField.name}") REFERENCES "${endTable.name}"("${endField.name}");`;
     })
-    .join("\n")}`;
+    .filter(Boolean)
+    .join("\n");
+})()}`;
 }

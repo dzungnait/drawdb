@@ -14,6 +14,7 @@ import {
   useLayout,
   useSaveState,
   useUndoRedo,
+  useEntityLock,
 } from "../../../hooks";
 import { Action, ObjectType, State, DB } from "../../../data/constants";
 import TableField from "./TableField";
@@ -32,6 +33,7 @@ export default function TableInfo({ data }) {
   const { setSaveState } = useSaveState();
   const [editField, setEditField] = useState({});
   const initialColorRef = useRef(data.color);
+  const { handleFocus: lockFocus, handleBlur: lockBlur } = useEntityLock(`table:${data.id}`);
 
   const handleColorPick = (color) => {
     setUndoStack((prev) => {
@@ -80,7 +82,7 @@ export default function TableInfo({ data }) {
       : [];
 
   return (
-    <div>
+    <div onFocus={lockFocus} onBlur={lockBlur}>
       <div className="flex items-center mb-2.5">
         <div className="text-md font-semibold break-keep">{t("name")}:</div>
         <Input

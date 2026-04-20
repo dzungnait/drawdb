@@ -1,5 +1,4 @@
-import { escapeQuotes, parseDefault } from "./shared";
-
+import { escapeQuotes, parseDefault, buildForeignKeyStatements } from "./shared";
 import { dbToTypes } from "../../data/datatypes";
 import { DB } from "../../data/constants";
 
@@ -7,7 +6,7 @@ function parseType(field) {
   let res = field.type;
 
   if (field.type === "SET" || field.type === "ENUM") {
-    res += `${field.values ? "(" + field.values.map((value) => "'" + value + "'").join(", ") + ")" : ""}`;
+    res += `${field.values ? "(" + field.values.map((v) => `'${v}'`).join(", ") + ")" : ""}`;
   }
 
   if (
@@ -20,62 +19,60 @@ function parseType(field) {
   return res;
 }
 
-export function toMySQL(diagram) {
-  return `${diagram.tables
-    .map(
-      (table) =>
-        `CREATE TABLE IF NOT EXISTS \`${table.name}\` (\n${table.fields
-          .map(
-            (field) =>
-              `\t\`${field.name}\` ${parseType(field)}${
-                dbToTypes[DB.MYSQL][field.type]?.signed && field.unsigned
-                  ? " UNSIGNED"
-                  : ""
-              }${field.notNull ? " NOT NULL" : ""}${
-                field.increment ? " AUTO_INCREMENT" : ""
-              }${field.unique ? " UNIQUE" : ""}${
-                field.default !== ""
-                  ? ` DEFAULT ${parseDefault(field, diagram.database)}`
-                  : ""
-              }${
-                field.check === "" ||
-                !dbToTypes[diagram.database][field.type].hasCheck
-                  ? ""
-                  : ` CHECK(${field.check})`
-              }${field.comment ? ` COMMENT '${escapeQuotes(field.comment)}'` : ""}`,
-          )
-          .join(",\n")}${
-          table.fields.filter((f) => f.primary).length > 0
-            ? `,\n\tPRIMARY KEY(${table.fields
-                .filter((f) => f.primary)
-                .map((f) => `\`${f.name}\``)
-                .join(", ")})`
-            : ""
-        }\n)${table.comment ? ` COMMENT='${escapeQuotes(table.comment)}'` : ""};\n${`\n${table.indices
-          .map(
-            (i) =>
-              `\nCREATE ${i.unique ? "UNIQUE " : ""}INDEX \`${
-                i.name
-              }\`\nON \`${table.name}\` (${i.fields
-                .map((f) => `\`${f}\``)
-                .join(", ")});`,
-          )
-          .join("")}`}`,
-    )
-    .join("\n")}\n${diagram.references
-    .map((r) => {
-      const { name: startName, fields: startFields } = diagram.tables.find(
-        (t) => t.id === r.startTableId,
-      );
+function exportField(field, database) {
+  const parts = [`\t\`${field.name}\` ${parseType(field)}`];
 
-      const { name: endName, fields: endFields } = diagram.tables.find(
-        (t) => t.id === r.endTableId,
-      );
-      return `ALTER TABLE \`${startName}\`\nADD FOREIGN KEY(\`${
-        startFields.find((f) => f.id === r.startFieldId).name
-      }\`) REFERENCES \`${endName}\`(\`${
-        endFields.find((f) => f.id === r.endFieldId).name
-      }\`)\nON UPDATE ${r.updateConstraint.toUpperCase()} ON DELETE ${r.deleteConstraint.toUpperCase()};`;
-    })
-    .join("\n")}`;
+  if (dbToTypes[DB.MYSQL][field.type]?.signed && field.unsigned) {
+    parts.push(" UNSIGNED");
+  }
+  if (field.notNull) parts.push(" NOT NULL");
+  if (field.increment) parts.push(" AUTO_INCREMENT");
+  if (field.unique) parts.push(" UNIQUE");
+  if (field.default !== "") {
+    parts.push(` DEFAULT ${parseDefault(field, database)}`);
+  }
+  if (field.check && dbToTypes[database][field.type].hasCheck) {
+    parts.push(` CHECK(${field.check})`);
+  }
+  if (field.comment) {
+    parts.push(` COMMENT '${escapeQuotes(field.comment)}'`);
+  }
+
+  return parts.join("");
+}
+
+function exportTable(table, database) {
+  const fieldsSql = table.fields.map((f) => exportField(f, database)).join(",\n");
+
+  const primaryKeys = table.fields.filter((f) => f.primary);
+  const pkSql =
+    primaryKeys.length > 0
+      ? `,\n\tPRIMARY KEY(${primaryKeys.map((f) => `\`${f.name}\``).join(", ")})`
+      : "";
+
+  const commentSql = table.comment
+    ? ` COMMENT='${escapeQuotes(table.comment)}'`
+    : "";
+
+  const indicesSql = table.indices
+    .map(
+      (i) =>
+        `\nCREATE ${i.unique ? "UNIQUE " : ""}INDEX \`${i.name}\`\nON \`${table.name}\` (${i.fields.map((f) => `\`${f}\``).join(", ")});`,
+    )
+    .join("");
+
+  return `CREATE TABLE IF NOT EXISTS \`${table.name}\` (\n${fieldsSql}${pkSql}\n)${commentSql};\n${indicesSql}`;
+}
+
+export function toMySQL(diagram) {
+  const tablesSql = diagram.tables.map((t) => exportTable(t, diagram.database)).join("\n\n");
+
+  const fkSql = buildForeignKeyStatements(
+    diagram.references,
+    diagram.tables,
+    "`",
+    "`",
+  );
+
+  return [tablesSql, fkSql].filter(Boolean).join("\n\n");
 }
