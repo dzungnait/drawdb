@@ -82,6 +82,8 @@ export default function WorkSpace() {
   // Flag to prevent re-broadcasting remote operations
   const isRemoteOpRef = useRef(false);
   const collabConnectedRef = useRef(false);
+  // Flag to suppress autosave during initial load
+  const isInitialLoadRef = useRef(true);
 
   const handleRemoteOperation = useCallback((op) => {
     isRemoteOpRef.current = true;
@@ -890,6 +892,7 @@ export default function WorkSpace() {
   };
 
   useEffect(() => {
+    if (isInitialLoadRef.current) return; // Don't autosave during initial load
     // Always allow saving if there's a title change or if there's actual content
     const hasContent = tables?.length > 0 ||
       areas?.length > 0 ||
@@ -926,6 +929,7 @@ export default function WorkSpace() {
   useEffect(() => {
     if (layout.readOnly) return;
     if (isRemoteOpRef.current) return; // Don't autosave for remote operations
+    if (isInitialLoadRef.current) return; // Don't autosave during initial load
     const hasContent =
       tables?.length > 0 ||
       areas?.length > 0 ||
@@ -975,7 +979,11 @@ export default function WorkSpace() {
 
   // Initialize editor when URL changes or component mounts
   useEffect(() => {
-    initializeEditor();
+    isInitialLoadRef.current = true;
+    initializeEditor().finally(() => {
+      // Allow autosave after initial load settles
+      setTimeout(() => { isInitialLoadRef.current = false; }, 500);
+    });
   }, [initializeEditor]); // Run when URL params change or component mounts
 
   return (

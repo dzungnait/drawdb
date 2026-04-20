@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 
 const baseUrl =
   import.meta.env.VITE_BACKEND_URL ??
-  "https://drawdb-server-production-524b.up.railway.app";
+  "https://drawdb-server-production.up.railway.app";
 
 let socket = null;
 
