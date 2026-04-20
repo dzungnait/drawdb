@@ -467,10 +467,14 @@ export default function WorkSpace() {
       console.log("Calling API to get design:", shareId);
       const { data } = await get(shareId);
       console.log("API response received:", data);
+      // Always use the canonical UUID returned by server as the designId/gistId
+      // This ensures all users end up in the same WS room regardless of
+      // whether they opened via shareId (share_token) or designId (UUID)
+      const canonicalId = data.id || shareId;
       const parsedDiagram = JSON.parse(data.files[SHARE_FILENAME].content);
       setUndoStack([]);
       setRedoStack([]);
-      setGistId(shareId);
+      setGistId(canonicalId);
       setLoadedFromGistId(shareId);
       setDatabase(parsedDiagram.database);
       setTitle(parsedDiagram.title);
@@ -509,11 +513,10 @@ export default function WorkSpace() {
       setFailedToLoadDesign(false);
       setPinProtected(data.pin_protected || false);
       
-      // Update URL để persist shareId
-      const currentShareId = new URLSearchParams(window.location.search).get("shareId");
-      if (shareId && !currentShareId) {
+      // Update URL to use canonical designId (UUID) so all users share the same link format
+      if (canonicalId && !canonicalId.startsWith('local_')) {
         const params = new URLSearchParams();
-        params.set("shareId", shareId);
+        params.set("designId", canonicalId);
         window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
       }
     } catch (e) {
