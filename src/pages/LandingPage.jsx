@@ -310,12 +310,12 @@ export default function LandingPage() {
                     >
                       {design.pin_protected ? "🔒" : "🔓"}
                     </button>
-                    <button
+                    {/* <button
                       onClick={(e) => handleDeleteDesign(e, design)}
                       className="px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors text-sm"
                     >
                       ✕
-                    </button>
+                    </button> */}
                   </div>
                 </div>
                 
