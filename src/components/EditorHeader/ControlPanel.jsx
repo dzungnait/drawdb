@@ -97,18 +97,42 @@ export default function ControlPanel({
       // --- Export full diagram as image (PNG, JPEG, SVG) ---
       function getDiagramBoundingBox() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        // Collect all elements to export
         const all = [
           ...tables.map(t => ({x: t.x, y: t.y, w: settings.tableWidth, h: getTableHeight(t, settings.tableWidth, settings.showComments)})),
           ...areas.map(a => ({x: a.x, y: a.y, w: a.width, h: a.height})),
           ...notes.map(n => ({x: n.x, y: n.y, w: n.width ?? noteWidth, h: n.height}))
         ];
-        all.forEach(({x, y, w, h}) => {
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x + w);
-          maxY = Math.max(maxY, y + h);
-        });
-        const pad = 32;
+        
+        // Calculate bounding box
+        if (all.length > 0) {
+          all.forEach(({x, y, w, h}) => {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + w);
+            maxY = Math.max(maxY, y + h);
+          });
+        } else {
+          // Fallback if no elements - use current viewport
+          minX = 0;
+          minY = 0;
+          maxX = 1920;
+          maxY = 1080;
+        }
+        
+        // Validate dimensions
+        if (!isFinite(minX) || !isFinite(maxX) || minX >= maxX || minY >= maxY) {
+          // Fallback to viewport size
+          return {
+            left: 0,
+            top: 0,
+            width: 1920,
+            height: 1080
+          };
+        }
+        
+        const pad = 50; // Increased padding to ensure nothing is cut off
         return {
           left: Math.floor(minX - pad),
           top: Math.floor(minY - pad),
@@ -118,41 +142,79 @@ export default function ControlPanel({
       }
 
       function exportFullDiagram(type) {
-        const bbox = getDiagramBoundingBox();
-        const origSvg = document.getElementById("diagram");
-        if (!origSvg) {
-          Toast.error("Diagram SVG not found");
-          return;
-        }
-        const clone = origSvg.cloneNode(true);
-        clone.setAttribute("width", bbox.width);
-        clone.setAttribute("height", bbox.height);
-        clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
-        clone.style.position = "static";
-        const container = document.createElement("div");
-        container.style.position = "fixed";
-        container.style.left = "-99999px";
-        container.style.top = "-99999px";
-        container.appendChild(clone);
-        document.body.appendChild(container);
-        const finish = (dataUrl, ext) => {
-          setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
-          setModal(MODAL.IMG);
-          document.body.removeChild(container);
-        };
-        if (type === "png") {
-          toPng(clone, { pixelRatio: pngExportPixelRatio })
-            .then((dataUrl) => finish(dataUrl, "png"))
-            .catch((e) => { Toast.error("Export PNG failed"); document.body.removeChild(container); });
-        } else if (type === "jpeg") {
-          toJpeg(clone, { quality: 0.95 })
-            .then((dataUrl) => finish(dataUrl, "jpeg"))
-            .catch((e) => { Toast.error("Export JPEG failed"); document.body.removeChild(container); });
-        } else if (type === "svg") {
-          const filter = (node) => node.tagName !== "i";
-          toSvg(clone, { filter })
-            .then((dataUrl) => finish(dataUrl, "svg"))
-            .catch((e) => { Toast.error("Export SVG failed"); document.body.removeChild(container); });
+        try {
+          // Check if there's content to export
+          if (tables.length === 0 && areas.length === 0 && notes.length === 0) {
+            Toast.error("No diagram content to export");
+            return;
+          }
+
+          const bbox = getDiagramBoundingBox();
+          const origSvg = document.getElementById("diagram");
+          if (!origSvg) {
+            Toast.error("Diagram SVG not found");
+            return;
+          }
+          
+          const clone = origSvg.cloneNode(true);
+          clone.setAttribute("width", bbox.width);
+          clone.setAttribute("height", bbox.height);
+          clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
+          clone.style.position = "static";
+          
+          // Create wrapper with white background
+          const wrapper = document.createElement("div");
+          wrapper.style.position = "fixed";
+          wrapper.style.left = "-99999px";
+          wrapper.style.top = "-99999px";
+          wrapper.style.width = bbox.width + "px";
+          wrapper.style.height = bbox.height + "px";
+          wrapper.style.backgroundColor = "white"; // White background for export
+          
+          wrapper.appendChild(clone);
+          document.body.appendChild(wrapper);
+          
+          const finish = (dataUrl, ext) => {
+            setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
+            setModal(MODAL.IMG);
+            document.body.removeChild(wrapper);
+          };
+          
+          const cleanup = () => {
+            if (wrapper && wrapper.parentNode) {
+              document.body.removeChild(wrapper);
+            }
+          };
+          
+          if (type === "png") {
+            toPng(wrapper, { pixelRatio: pngExportPixelRatio, backgroundColor: "#ffffff" })
+              .then((dataUrl) => finish(dataUrl, "png"))
+              .catch((e) => { 
+                console.error("Export PNG failed:", e);
+                Toast.error("Export PNG failed: " + (e?.message || "Unknown error"));
+                cleanup();
+              });
+          } else if (type === "jpeg") {
+            toJpeg(wrapper, { quality: 0.95, backgroundColor: "#ffffff" })
+              .then((dataUrl) => finish(dataUrl, "jpeg"))
+              .catch((e) => { 
+                console.error("Export JPEG failed:", e);
+                Toast.error("Export JPEG failed: " + (e?.message || "Unknown error"));
+                cleanup();
+              });
+          } else if (type === "svg") {
+            const filter = (node) => node.tagName !== "i";
+            toSvg(clone, { filter, backgroundColor: "#ffffff" })
+              .then((dataUrl) => finish(dataUrl, "svg"))
+              .catch((e) => { 
+                console.error("Export SVG failed:", e);
+                Toast.error("Export SVG failed: " + (e?.message || "Unknown error"));
+                cleanup();
+              });
+          }
+        } catch (error) {
+          console.error("Export error:", error);
+          Toast.error("Export failed: " + (error?.message || "Unknown error"));
         }
       }
 
