@@ -5,7 +5,7 @@
 
 const TABLE_WIDTH = 150;
 const TABLE_HEIGHT = 100;
-const HORIZONTAL_SPACING = 200; // Space between tables horizontally
+const HORIZONTAL_SPACING = 400; // Space between tables horizontally
 const VERTICAL_SPACING = 200; // Space between layers vertically
 const PADDING = 50; // Padding from edges
 
