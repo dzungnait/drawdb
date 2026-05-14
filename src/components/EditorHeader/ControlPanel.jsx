@@ -97,14 +97,29 @@ export default function ControlPanel({
       // --- Export full diagram as image (PNG, JPEG, SVG) ---
       function getDiagramBoundingBox() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        
+
         // Collect all elements to export
         const all = [
-          ...tables.map(t => ({x: t.x, y: t.y, w: settings.tableWidth, h: getTableHeight(t, settings.tableWidth, settings.showComments)})),
-          ...areas.map(a => ({x: a.x, y: a.y, w: a.width, h: a.height})),
-          ...notes.map(n => ({x: n.x, y: n.y, w: n.width ?? noteWidth, h: n.height}))
+          ...tables.map(t => ({
+            x: t.x ?? 0, // Ensure x is defined
+            y: t.y ?? 0, // Ensure y is defined
+            w: settings.tableWidth ?? 100, // Default width if undefined
+            h: getTableHeight(t, settings.tableWidth, settings.showComments) ?? 50 // Default height if undefined
+          })),
+          ...areas.map(a => ({
+            x: a.x ?? 0,
+            y: a.y ?? 0,
+            w: a.width ?? 100,
+            h: a.height ?? 100
+          })),
+          ...notes.map(n => ({
+            x: n.x ?? 0,
+            y: n.y ?? 0,
+            w: n.width ?? noteWidth,
+            h: n.height ?? 50
+          }))
         ];
-        
+
         // Calculate bounding box
         if (all.length > 0) {
           all.forEach(({x, y, w, h}) => {
@@ -120,7 +135,7 @@ export default function ControlPanel({
           maxX = 1920;
           maxY = 1080;
         }
-        
+
         // Validate dimensions
         if (!isFinite(minX) || !isFinite(maxX) || minX >= maxX || minY >= maxY) {
           // Fallback to viewport size
@@ -131,7 +146,7 @@ export default function ControlPanel({
             height: 1080
           };
         }
-        
+
         const pad = 50; // Increased padding to ensure nothing is cut off
         return {
           left: Math.floor(minX - pad),
