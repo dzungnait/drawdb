@@ -6,6 +6,8 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconSaveStroked,
+  IconUndo,
+  IconRedo,
   IconEdit,
   IconShareStroked,
 } from "@douyinfe/semi-icons";
@@ -162,7 +164,9 @@ export default function ControlPanel({
   });
   const [modal, setModal] = useState(MODAL.NONE);
   const [showEditName, setShowEditName] = useState(false);
+  const [sidesheet, setSidesheet] = useState(SIDESHEET.NONE);
   const [importFrom, setImportFrom] = useState(IMPORT_FROM.JSON);
+  const [importDb, setImportDb] = useState(DB.GENERIC);
   const { saveState, setSaveState } = useSaveState();
   const { layout, setLayout } = useLayout();
   const { settings, setSettings } = useSettings();
