@@ -169,56 +169,78 @@ export default function ControlPanel({
         }
 
         const bbox = getDiagramBoundingBox();
+        const savedTransform = { pan: { ...transform.pan }, zoom: transform.zoom };
 
-        // Save original attributes to restore after export
-        const savedWidth = svg.getAttribute("width");
-        const savedHeight = svg.getAttribute("height");
-        const savedViewBox = svg.getAttribute("viewBox");
-        const savedStyle = svg.style.cssText;
+        // Step 1: Set zoom extremely small so ALL tables pass isInViewport culling
+        // and get rendered into the DOM. Pan to diagram center.
+        const panX = bbox.left + bbox.width / 2;
+        const panY = bbox.top + bbox.height / 2;
+        setTransform({ pan: { x: panX, y: panY }, zoom: 0.001 });
 
-        // Temporarily set export dimensions on the live SVG
-        svg.setAttribute("width", bbox.width);
-        svg.setAttribute("height", bbox.height);
-        svg.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
-        svg.style.position = "absolute";
-        svg.style.top = "0";
-        svg.style.left = "0";
+        // Step 2: Wait 2 animation frames for React to re-render with all tables visible
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Save SVG original state
+            const savedViewBox = svg.getAttribute("viewBox");
+            const savedStyle = svg.style.cssText;
 
-        const restore = () => {
-          if (savedWidth !== null) svg.setAttribute("width", savedWidth);
-          else svg.removeAttribute("width");
-          if (savedHeight !== null) svg.setAttribute("height", savedHeight);
-          else svg.removeAttribute("height");
-          if (savedViewBox !== null) svg.setAttribute("viewBox", savedViewBox);
-          else svg.removeAttribute("viewBox");
-          svg.style.cssText = savedStyle;
-        };
+            // Step 3: Override SVG dimensions and viewBox for export
+            // Inline style overrides Tailwind's w-full h-full
+            svg.style.width = bbox.width + "px";
+            svg.style.height = bbox.height + "px";
+            svg.style.position = "absolute";
+            svg.style.top = "0";
+            svg.style.left = "0";
+            svg.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
 
-        const finish = (dataUrl, ext) => {
-          restore();
-          setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
-          setModal(MODAL.IMG);
-        };
+            const restore = () => {
+              svg.style.cssText = savedStyle;
+              if (savedViewBox !== null) svg.setAttribute("viewBox", savedViewBox);
+              else svg.removeAttribute("viewBox");
+              setTransform(savedTransform);
+            };
 
-        const onError = (e) => {
-          restore();
-          console.error("Export failed:", e);
-          Toast.error("Export failed: " + (e?.message || "Unknown error"));
-        };
+            const finish = (dataUrl, ext) => {
+              restore();
+              setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
+              setModal(MODAL.IMG);
+            };
 
-        if (type === "png") {
-          toPng(svg, { pixelRatio: pngExportPixelRatio, backgroundColor: "#ffffff" })
-            .then((dataUrl) => finish(dataUrl, "png"))
-            .catch(onError);
-        } else if (type === "jpeg") {
-          toJpeg(svg, { quality: 0.95, backgroundColor: "#ffffff" })
-            .then((dataUrl) => finish(dataUrl, "jpeg"))
-            .catch(onError);
-        } else if (type === "svg") {
-          toSvg(svg, { backgroundColor: "#ffffff" })
-            .then((dataUrl) => finish(dataUrl, "svg"))
-            .catch(onError);
-        }
+            const onError = (e) => {
+              restore();
+              console.error("Export failed:", e);
+              Toast.error("Export failed: " + (e?.message || "Unknown error"));
+            };
+
+            if (type === "png") {
+              toPng(svg, {
+                pixelRatio: pngExportPixelRatio,
+                backgroundColor: "#ffffff",
+                width: bbox.width,
+                height: bbox.height,
+              })
+                .then((dataUrl) => finish(dataUrl, "png"))
+                .catch(onError);
+            } else if (type === "jpeg") {
+              toJpeg(svg, {
+                quality: 0.95,
+                backgroundColor: "#ffffff",
+                width: bbox.width,
+                height: bbox.height,
+              })
+                .then((dataUrl) => finish(dataUrl, "jpeg"))
+                .catch(onError);
+            } else if (type === "svg") {
+              toSvg(svg, {
+                backgroundColor: "#ffffff",
+                width: bbox.width,
+                height: bbox.height,
+              })
+                .then((dataUrl) => finish(dataUrl, "svg"))
+                .catch(onError);
+            }
+          });
+        });
       }
 
   // --- State for export data ---
