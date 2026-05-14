@@ -3,105 +3,78 @@
  * Groups tables by relationship depth and arranges them in layers
  */
 
-const TABLE_WIDTH = 150;
-const TABLE_HEIGHT = 100;
-const CANVAS_WIDTH = 1920; // Default canvas width
-const CANVAS_PADDING = 50; // Padding around the canvas
-const HORIZONTAL_SPACING = 300; // Increased horizontal spacing
-const VERTICAL_SPACING = 200; // Increased vertical spacing
-const PADDING = 50; // Padding from edges
+import { tableWidth as DEFAULT_TABLE_WIDTH, tableHeaderHeight, tableFieldHeight, tableColorStripHeight } from "../data/constants";
+
+const H_GAP = 60;      // horizontal gap between tables
+const V_GAP = 80;      // vertical gap between rows
+const MAX_COLS = 5;    // max tables per row before wrapping
+const START_X = 80;
+const START_Y = 80;
+
+/** Calculate the pixel height of a table based on its fields */
+function calcTableHeight(table) {
+  return tableHeaderHeight + tableColorStripHeight + table.fields.length * tableFieldHeight;
+}
 
 /**
- * Build relationship graph from relationships
+ * Build adjacency graph: for each table, track incoming and outgoing FK connections
  */
-function buildRelationshipGraph(tables, relationships) {
+function buildGraph(tables, relationships) {
   const graph = new Map();
-  
-  tables.forEach(table => {
-    if (!graph.has(table.id)) {
-      graph.set(table.id, { incoming: new Set(), outgoing: new Set() });
-    }
-  });
+  tables.forEach(t => graph.set(t.id, { incoming: new Set(), outgoing: new Set() }));
 
   relationships.forEach(rel => {
-    const start = graph.get(rel.startTableId) || { incoming: new Set(), outgoing: new Set() };
-    const end = graph.get(rel.endTableId) || { incoming: new Set(), outgoing: new Set() };
-    
-    start.outgoing.add(rel.endTableId);
-    end.incoming.add(rel.startTableId);
-    
-    graph.set(rel.startTableId, start);
-    graph.set(rel.endTableId, end);
+    if (graph.has(rel.startTableId) && graph.has(rel.endTableId)) {
+      graph.get(rel.startTableId).outgoing.add(rel.endTableId);
+      graph.get(rel.endTableId).incoming.add(rel.startTableId);
+    }
   });
 
   return graph;
 }
 
 /**
- * Calculate layer/depth for each table based on relationship distance
+ * Assign a topological "layer" (depth) to each table via BFS from roots.
+ * Roots = tables with no incoming FK edges.
  */
-function calculateLayers(tables, graph) {
-  const layers = new Map(); // table.id -> layer number
-  const visited = new Set();
-  
-  // Find root tables (tables with no incoming relationships or only self-references)
-  const rootTables = tables.filter(t => {
-    const info = graph.get(t.id);
-    return info.incoming.size === 0;
-  });
+function assignLayers(tables, graph) {
+  const layers = new Map();
 
-  // If no root tables, use tables with highest outgoing count
-  if (rootTables.length === 0) {
-    const sorted = tables.sort((a, b) => {
-      const aOut = graph.get(a.id).outgoing.size;
-      const bOut = graph.get(b.id).outgoing.size;
-      return bOut - aOut;
-    });
-    rootTables.push(...sorted.slice(0, Math.max(1, Math.ceil(tables.length / 3))));
+  // Seed roots: tables with no incoming edges
+  let roots = tables.filter(t => graph.get(t.id).incoming.size === 0);
+
+  // If every table is part of a cycle, pick most-connected tables as roots
+  if (roots.length === 0) {
+    const sorted = [...tables].sort(
+      (a, b) => graph.get(b.id).outgoing.size - graph.get(a.id).outgoing.size
+    );
+    roots = sorted.slice(0, Math.max(1, Math.ceil(tables.length / 4)));
   }
 
-  // BFS to assign layers
   const queue = [];
-  rootTables.forEach(t => {
+  roots.forEach(t => {
     layers.set(t.id, 0);
     queue.push(t.id);
-    visited.add(t.id);
   });
 
   while (queue.length > 0) {
-    const tableId = queue.shift();
-    const currentLayer = layers.get(tableId);
-    const info = graph.get(tableId);
-
-    // Assign next layer to outgoing tables
-    info.outgoing.forEach(nextId => {
-      if (!visited.has(nextId)) {
-        visited.add(nextId);
-        const nextInfo = graph.get(nextId);
-        const incomingLayers = Array.from(nextInfo.incoming)
-          .map(id => layers.get(id) ?? -1)
-          .filter(l => l >= 0);
-        
-        const nextLayer = Math.max(currentLayer + 1, ...incomingLayers.map(l => l + 1));
-        layers.set(nextId, nextLayer);
-        queue.push(nextId);
+    const id = queue.shift();
+    const layer = layers.get(id);
+    graph.get(id).outgoing.forEach(childId => {
+      const proposed = layer + 1;
+      if (!layers.has(childId) || layers.get(childId) < proposed) {
+        layers.set(childId, proposed);
+        queue.push(childId);
       }
     });
   }
 
-  // Assign remaining unvisited tables to a layer based on their connections
+  // Place any remaining tables (from cycles not reachable from roots)
   tables.forEach(t => {
     if (!layers.has(t.id)) {
-      const info = graph.get(t.id);
-      if (info.incoming.size > 0) {
-        const maxIncomingLayer = Math.max(
-          ...Array.from(info.incoming)
-            .map(id => layers.get(id) ?? 0)
-        );
-        layers.set(t.id, maxIncomingLayer + 1);
-      } else {
-        layers.set(t.id, Math.max(...Array.from(layers.values()).filter(l => typeof l === 'number'), 0) + 1);
-      }
+      const incoming = Array.from(graph.get(t.id).incoming);
+      const maxIn = incoming.reduce((m, id) => Math.max(m, layers.get(id) ?? 0), 0);
+      layers.set(t.id, maxIn + 1);
     }
   });
 
@@ -109,64 +82,87 @@ function calculateLayers(tables, graph) {
 }
 
 /**
- * Organize tables by layer
+ * Within a layer, sort tables so that those connected to the previous layer
+ * appear close to their parents (reduces crossing lines).
  */
-function organizeByLayers(tables, layers) {
-  const layerGroups = new Map();
-  
-  tables.forEach(table => {
-    const layer = layers.get(table.id) ?? 0;
-    if (!layerGroups.has(layer)) {
-      layerGroups.set(layer, []);
-    }
-    layerGroups.get(layer).push(table.id);
-  });
+function sortLayerByConnections(tableIds, prevLayerPositions, graph) {
+  return [...tableIds].sort((a, b) => {
+    const aParents = Array.from(graph.get(a).incoming);
+    const bParents = Array.from(graph.get(b).incoming);
 
-  return layerGroups;
+    const aAvg = aParents.length
+      ? aParents.reduce((s, id) => s + (prevLayerPositions.get(id) ?? 0), 0) / aParents.length
+      : Infinity;
+    const bAvg = bParents.length
+      ? bParents.reduce((s, id) => s + (prevLayerPositions.get(id) ?? 0), 0) / bParents.length
+      : Infinity;
+
+    return aAvg - bAvg;
+  });
 }
 
 /**
- * Main function to calculate new positions for all tables using hierarchical layout
- * Respects locked tables and areas
+ * Main function to calculate new positions for all tables.
+ * Uses a layered layout (top = roots, bottom = leaves) with:
+ *  - max MAX_COLS tables per row (wraps to next row if more)
+ *  - actual table heights for vertical spacing
+ *  - connection-aware column ordering to reduce line crossings
  */
 export function calculateAutoArrangePositions(tables, relationships, areas = []) {
   if (tables.length === 0) return new Map();
 
   const unlockedTables = tables.filter(t => !t.locked);
   const lockedTables = tables.filter(t => t.locked);
+  if (unlockedTables.length === 0) return new Map();
 
-  if (unlockedTables.length === 0) {
-    return new Map();
-  }
+  const tableMap = new Map(tables.map(t => [t.id, t]));
+  const graph = buildGraph(unlockedTables, relationships);
+  const layers = assignLayers(unlockedTables, graph);
 
-  const graph = buildRelationshipGraph(unlockedTables, relationships);
-  const layers = calculateLayers(unlockedTables, graph);
-  const layerGroups = organizeByLayers(unlockedTables, layers);
+  // Group table ids by layer number
+  const layerGroups = new Map();
+  unlockedTables.forEach(t => {
+    const l = layers.get(t.id) ?? 0;
+    if (!layerGroups.has(l)) layerGroups.set(l, []);
+    layerGroups.get(l).push(t.id);
+  });
 
   const positions = new Map();
-  let currentY = CANVAS_PADDING;
+  // Track x-index for each table (used for cross-reduction sorting)
+  const colOrder = new Map(); // tableId -> x position
+  let currentY = START_Y;
   const maxLayer = Math.max(...Array.from(layers.values()));
 
   for (let layerNum = 0; layerNum <= maxLayer; layerNum++) {
-    const tableIds = layerGroups.get(layerNum) || [];
-
+    let tableIds = layerGroups.get(layerNum) || [];
     if (tableIds.length === 0) continue;
 
-    const layerWidth = tableIds.length * HORIZONTAL_SPACING;
-    const startX = Math.max(CANVAS_PADDING, (CANVAS_WIDTH - layerWidth) / 2);
+    // Sort tables in this layer to reduce line crossings with prev layer
+    const prevColOrder = layerNum > 0 ? colOrder : new Map();
+    tableIds = sortLayerByConnections(tableIds, prevColOrder, graph);
 
-    tableIds.forEach((tableId, index) => {
-      const x = startX + index * HORIZONTAL_SPACING;
-      const y = currentY;
-      positions.set(tableId, { x, y });
-    });
+    // Split into rows of MAX_COLS
+    for (let rowStart = 0; rowStart < tableIds.length; rowStart += MAX_COLS) {
+      const rowIds = tableIds.slice(rowStart, rowStart + MAX_COLS);
 
-    currentY += VERTICAL_SPACING;
+      // Height of this row = tallest table in it
+      const rowHeight = rowIds.reduce((max, id) => {
+        const t = tableMap.get(id);
+        return Math.max(max, t ? calcTableHeight(t) : tableHeaderHeight + tableColorStripHeight);
+      }, 0);
+
+      rowIds.forEach((id, col) => {
+        const x = START_X + col * (DEFAULT_TABLE_WIDTH + H_GAP);
+        positions.set(id, { x, y: currentY });
+        colOrder.set(id, x);
+      });
+
+      currentY += rowHeight + V_GAP;
+    }
   }
 
-  lockedTables.forEach(table => {
-    positions.set(table.id, { x: table.x, y: table.y });
-  });
+  // Keep locked tables in their original positions
+  lockedTables.forEach(t => positions.set(t.id, { x: t.x, y: t.y }));
 
   return positions;
 }
