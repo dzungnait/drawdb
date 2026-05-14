@@ -6,17 +6,90 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconSaveStroked,
-  // ...existing code...
+  IconEdit,
+  IconShareStroked,
 } from "@douyinfe/semi-icons";
-// ...existing code...
-    export default function ControlPanel({
-      diagramId,
-      setDiagramId,
-      title,
-      setTitle,
-      lastSaved,
-    }) {
-      // ...existing hooks and state...
+import { Link, useNavigate } from "react-router-dom";
+import icon from "../../assets/icon_dark_64.png";
+import {
+  Button,
+  Divider,
+  Dropdown,
+  InputNumber,
+  Tooltip,
+  Spin,
+  Tag,
+  Toast,
+  Popconfirm,
+} from "@douyinfe/semi-ui";
+import { toPng, toJpeg, toSvg } from "html-to-image";
+import {
+  jsonToMySQL,
+  jsonToPostgreSQL,
+  jsonToSQLite,
+  jsonToMariaDB,
+  jsonToSQLServer,
+  jsonToOracleSQL,
+} from "../../utils/exportSQL/generic";
+import {
+  ObjectType,
+  Action,
+  Tab,
+  State,
+  MODAL,
+  SIDESHEET,
+  DB,
+  IMPORT_FROM,
+  noteWidth,
+  pngExportPixelRatio,
+} from "../../data/constants";
+import jsPDF from "jspdf";
+import { useHotkeys } from "react-hotkeys-hook";
+import { Validator } from "jsonschema";
+import { areaSchema, noteSchema, tableSchema } from "../../data/schemas";
+import { db } from "../../data/db";
+import {
+  useLayout,
+  useSettings,
+  useTransform,
+  useDiagram,
+  useUndoRedo,
+  useSelect,
+  useSaveState,
+  useTypes,
+  useNotes,
+  useAreas,
+  useFullscreen,
+} from "../../hooks";
+import { enterFullscreen, exitFullscreen } from "../../utils/fullscreen";
+import { dataURItoBlob } from "../../utils/utils";
+import { IconAddArea, IconAddNote, IconAddTable } from "../../icons";
+import LayoutDropdown from "./LayoutDropdown";
+import Sidesheet from "./SideSheet/Sidesheet";
+import Modal from "./Modal/Modal";
+import { useTranslation } from "react-i18next";
+import { exportSQL } from "../../utils/exportSQL";
+import { databases } from "../../data/databases";
+import { jsonToMermaid } from "../../utils/exportAs/mermaid";
+import { isRtl } from "../../i18n/utils/rtl";
+import { jsonToDocumentation } from "../../utils/exportAs/documentation";
+import { IdContext } from "../../context/IdContext";
+import { socials } from "../../data/socials";
+import { toDBML } from "../../utils/exportAs/dbml";
+import { exportSavedData } from "../../utils/exportSavedData";
+import { nanoid } from "nanoid";
+import { getTableHeight } from "../../utils/utils";
+import { deleteFromCache, STORAGE_KEY } from "../../utils/cache";
+import { useLiveQuery } from "dexie-react-hooks";
+import { DateTime } from "luxon";
+
+export default function ControlPanel({
+  diagramId,
+  setDiagramId,
+  title,
+  setTitle,
+  lastSaved,
+}) {
 
       // --- Export full diagram as image (PNG, JPEG, SVG) ---
       function getDiagramBoundingBox() {
