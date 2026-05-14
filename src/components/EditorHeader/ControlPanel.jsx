@@ -160,6 +160,8 @@ export default function ControlPanel({
     filename: `${title}_${new Date().toISOString()}`,
     extension: "",
   });
+  const [modal, setModal] = useState(MODAL.NONE);
+  const [showEditName, setShowEditName] = useState(false);
   const [importFrom, setImportFrom] = useState(IMPORT_FROM.JSON);
   const { saveState, setSaveState } = useSaveState();
   const { layout, setLayout } = useLayout();
