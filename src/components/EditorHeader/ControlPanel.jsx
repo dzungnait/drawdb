@@ -56,6 +56,7 @@ import {
   useUndoRedo,
   useSelect,
   useSaveState,
+  useEnums,
   useTypes,
   useNotes,
   useAreas,
