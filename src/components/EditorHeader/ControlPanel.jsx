@@ -6,96 +6,81 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconSaveStroked,
-  IconUndo,
-  IconRedo,
-  IconEdit,
-  IconShareStroked,
+  // ...existing code...
 } from "@douyinfe/semi-icons";
-import { Link, useNavigate } from "react-router-dom";
-import icon from "../../assets/icon_dark_64.png";
-import {
-  Button,
-  Divider,
-  Dropdown,
-  InputNumber,
-  Tooltip,
-  Spin,
-  Tag,
-  Toast,
-  Popconfirm,
-} from "@douyinfe/semi-ui";
-import { toPng, toJpeg, toSvg } from "html-to-image";
-import {
-  jsonToMySQL,
-  jsonToPostgreSQL,
-  jsonToSQLite,
-  jsonToMariaDB,
-  jsonToSQLServer,
-  jsonToOracleSQL,
-} from "../../utils/exportSQL/generic";
-import {
-  ObjectType,
-  Action,
-  Tab,
-  State,
-  MODAL,
-  SIDESHEET,
-  DB,
-  IMPORT_FROM,
-  noteWidth,
-  pngExportPixelRatio,
-} from "../../data/constants";
-import jsPDF from "jspdf";
-import { useHotkeys } from "react-hotkeys-hook";
-import { Validator } from "jsonschema";
-import { areaSchema, noteSchema, tableSchema } from "../../data/schemas";
-import { db } from "../../data/db";
-import {
-  useLayout,
-  useSettings,
-  useTransform,
-  useDiagram,
-  useUndoRedo,
-  useSelect,
-  useSaveState,
-  useTypes,
-  useNotes,
-  useAreas,
-  useEnums,
-  useFullscreen,
-} from "../../hooks";
-import { enterFullscreen, exitFullscreen } from "../../utils/fullscreen";
-import { dataURItoBlob } from "../../utils/utils";
-import { IconAddArea, IconAddNote, IconAddTable } from "../../icons";
-import LayoutDropdown from "./LayoutDropdown";
-import Sidesheet from "./SideSheet/Sidesheet";
-import Modal from "./Modal/Modal";
-import { useTranslation } from "react-i18next";
-import { exportSQL } from "../../utils/exportSQL";
-import { databases } from "../../data/databases";
-import { jsonToMermaid } from "../../utils/exportAs/mermaid";
-import { isRtl } from "../../i18n/utils/rtl";
-import { jsonToDocumentation } from "../../utils/exportAs/documentation";
-import { IdContext } from "../../context/IdContext";
-import { socials } from "../../data/socials";
-import { toDBML } from "../../utils/exportAs/dbml";
-import { exportSavedData } from "../../utils/exportSavedData";
-import { nanoid } from "nanoid";
-import { getTableHeight } from "../../utils/utils";
-import { deleteFromCache, STORAGE_KEY } from "../../utils/cache";
-import { useLiveQuery } from "dexie-react-hooks";
-import { DateTime } from "luxon";
-export default function ControlPanel({
-  diagramId,
-  setDiagramId,
-  title,
-  setTitle,
-  lastSaved,
-}) {
-  const [modal, setModal] = useState(MODAL.NONE);
-  const [sidesheet, setSidesheet] = useState(SIDESHEET.NONE);
-  const [showEditName, setShowEditName] = useState(false);
-  const [importDb, setImportDb] = useState("");
+// ...existing code...
+    export default function ControlPanel({
+      diagramId,
+      setDiagramId,
+      title,
+      setTitle,
+      lastSaved,
+    }) {
+      // ...existing hooks and state...
+
+      // --- Export full diagram as image (PNG, JPEG, SVG) ---
+      function getDiagramBoundingBox() {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const all = [
+          ...tables.map(t => ({x: t.x, y: t.y, w: settings.tableWidth, h: getTableHeight(t, settings.tableWidth, settings.showComments)})),
+          ...areas.map(a => ({x: a.x, y: a.y, w: a.width, h: a.height})),
+          ...notes.map(n => ({x: n.x, y: n.y, w: n.width ?? noteWidth, h: n.height}))
+        ];
+        all.forEach(({x, y, w, h}) => {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x + w);
+          maxY = Math.max(maxY, y + h);
+        });
+        const pad = 32;
+        return {
+          left: Math.floor(minX - pad),
+          top: Math.floor(minY - pad),
+          width: Math.ceil(maxX - minX + 2 * pad),
+          height: Math.ceil(maxY - minY + 2 * pad)
+        };
+      }
+
+      function exportFullDiagram(type) {
+        const bbox = getDiagramBoundingBox();
+        const origSvg = document.getElementById("diagram");
+        if (!origSvg) {
+          Toast.error("Diagram SVG not found");
+          return;
+        }
+        const clone = origSvg.cloneNode(true);
+        clone.setAttribute("width", bbox.width);
+        clone.setAttribute("height", bbox.height);
+        clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
+        clone.style.position = "static";
+        const container = document.createElement("div");
+        container.style.position = "fixed";
+        container.style.left = "-99999px";
+        container.style.top = "-99999px";
+        container.appendChild(clone);
+        document.body.appendChild(container);
+        const finish = (dataUrl, ext) => {
+          setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
+          setModal(MODAL.IMG);
+          document.body.removeChild(container);
+        };
+        if (type === "png") {
+          toPng(clone, { pixelRatio: pngExportPixelRatio })
+            .then((dataUrl) => finish(dataUrl, "png"))
+            .catch((e) => { Toast.error("Export PNG failed"); document.body.removeChild(container); });
+        } else if (type === "jpeg") {
+          toJpeg(clone, { quality: 0.95 })
+            .then((dataUrl) => finish(dataUrl, "jpeg"))
+            .catch((e) => { Toast.error("Export JPEG failed"); document.body.removeChild(container); });
+        } else if (type === "svg") {
+          const filter = (node) => node.tagName !== "i";
+          toSvg(clone, { filter })
+            .then((dataUrl) => finish(dataUrl, "svg"))
+            .catch((e) => { Toast.error("Export SVG failed"); document.body.removeChild(container); });
+        }
+      }
+
+  // --- State for export data ---
   const [exportData, setExportData] = useState({
     data: null,
     filename: `${title}_${new Date().toISOString()}`,
@@ -1253,74 +1238,6 @@ export default function ControlPanel({
               exportFullDiagram("svg");
             },
           },
-            // --- Export full diagram as image (PNG, JPEG, SVG) ---
-            function getDiagramBoundingBox() {
-              // Calculate the bounding box of all tables, areas, notes
-              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-              const all = [
-                ...tables.map(t => ({x: t.x, y: t.y, w: settings.tableWidth, h: getTableHeight(t, settings.tableWidth, settings.showComments)})),
-                ...areas.map(a => ({x: a.x, y: a.y, w: a.width, h: a.height})),
-                ...notes.map(n => ({x: n.x, y: n.y, w: n.width ?? noteWidth, h: n.height}))
-              ];
-              all.forEach(({x, y, w, h}) => {
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x + w);
-                maxY = Math.max(maxY, y + h);
-              });
-              // Add some padding
-              const pad = 32;
-              return {
-                left: Math.floor(minX - pad),
-                top: Math.floor(minY - pad),
-                width: Math.ceil(maxX - minX + 2 * pad),
-                height: Math.ceil(maxY - minY + 2 * pad)
-              };
-            }
-
-            function exportFullDiagram(type) {
-              const bbox = getDiagramBoundingBox();
-              // Clone the SVG node and set its viewBox and size to the full diagram
-              const origSvg = document.getElementById("diagram");
-              if (!origSvg) {
-                Toast.error("Diagram SVG not found");
-                return;
-              }
-              const clone = origSvg.cloneNode(true);
-              clone.setAttribute("width", bbox.width);
-              clone.setAttribute("height", bbox.height);
-              clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
-              // Remove any transforms/styles that would restrict to viewport
-              clone.style.position = "static";
-              // Create a container for export
-              const container = document.createElement("div");
-              container.style.position = "fixed";
-              container.style.left = "-99999px";
-              container.style.top = "-99999px";
-              container.appendChild(clone);
-              document.body.appendChild(container);
-
-              // Export using html-to-image
-              const finish = (dataUrl, ext) => {
-                setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
-                setModal(MODAL.IMG);
-                document.body.removeChild(container);
-              };
-              if (type === "png") {
-                toPng(clone, { pixelRatio: pngExportPixelRatio })
-                  .then((dataUrl) => finish(dataUrl, "png"))
-                  .catch((e) => { Toast.error("Export PNG failed"); document.body.removeChild(container); });
-              } else if (type === "jpeg") {
-                toJpeg(clone, { quality: 0.95 })
-                  .then((dataUrl) => finish(dataUrl, "jpeg"))
-                  .catch((e) => { Toast.error("Export JPEG failed"); document.body.removeChild(container); });
-              } else if (type === "svg") {
-                const filter = (node) => node.tagName !== "i";
-                toSvg(clone, { filter })
-                  .then((dataUrl) => finish(dataUrl, "svg"))
-                  .catch((e) => { Toast.error("Export SVG failed"); document.body.removeChild(container); });
-              }
-            }
           {
             name: "JSON",
             function: () => {
