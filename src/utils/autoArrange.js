@@ -5,8 +5,10 @@
 
 const TABLE_WIDTH = 150;
 const TABLE_HEIGHT = 100;
-const HORIZONTAL_SPACING = 400; // Space between tables horizontally
-const VERTICAL_SPACING = 200; // Space between layers vertically
+const CANVAS_WIDTH = 1920; // Default canvas width
+const CANVAS_PADDING = 50; // Padding around the canvas
+const HORIZONTAL_SPACING = 300; // Increased horizontal spacing
+const VERTICAL_SPACING = 200; // Increased vertical spacing
 const PADDING = 50; // Padding from edges
 
 /**
@@ -130,49 +132,38 @@ function organizeByLayers(tables, layers) {
 export function calculateAutoArrangePositions(tables, relationships, areas = []) {
   if (tables.length === 0) return new Map();
 
-  // Separate locked and unlocked tables
   const unlockedTables = tables.filter(t => !t.locked);
   const lockedTables = tables.filter(t => t.locked);
-  
+
   if (unlockedTables.length === 0) {
-    return new Map(); // Nothing to arrange
+    return new Map();
   }
 
-  // Build relationship graph
   const graph = buildRelationshipGraph(unlockedTables, relationships);
-
-  // Calculate layers based on relationships
   const layers = calculateLayers(unlockedTables, graph);
-
-  // Organize tables by layer
   const layerGroups = organizeByLayers(unlockedTables, layers);
 
-  // Calculate positions for each layer
   const positions = new Map();
-  let currentY = PADDING;
+  let currentY = CANVAS_PADDING;
   const maxLayer = Math.max(...Array.from(layers.values()));
 
   for (let layerNum = 0; layerNum <= maxLayer; layerNum++) {
     const tableIds = layerGroups.get(layerNum) || [];
-    
+
     if (tableIds.length === 0) continue;
 
-    // Calculate horizontal spacing for this layer
     const layerWidth = tableIds.length * HORIZONTAL_SPACING;
-    const startX = Math.max(PADDING, (1920 - layerWidth) / 2); // Center layer (assuming ~1920px width)
+    const startX = Math.max(CANVAS_PADDING, (CANVAS_WIDTH - layerWidth) / 2);
 
-    // Position tables in this layer
     tableIds.forEach((tableId, index) => {
       const x = startX + index * HORIZONTAL_SPACING;
       const y = currentY;
       positions.set(tableId, { x, y });
     });
 
-    // Move to next layer
     currentY += VERTICAL_SPACING;
   }
 
-  // Keep locked tables in their original positions
   lockedTables.forEach(table => {
     positions.set(table.id, { x: table.x, y: table.y });
   });

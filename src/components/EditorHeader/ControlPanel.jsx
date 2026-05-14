@@ -157,79 +157,67 @@ export default function ControlPanel({
       }
 
       function exportFullDiagram(type) {
-        try {
-          // Check if there's content to export
-          if (tables.length === 0 && areas.length === 0 && notes.length === 0) {
-            Toast.error("No diagram content to export");
-            return;
-          }
+        if (tables.length === 0 && areas.length === 0 && notes.length === 0) {
+          Toast.error("No diagram content to export");
+          return;
+        }
 
-          const bbox = getDiagramBoundingBox();
-          const origSvg = document.getElementById("diagram");
-          if (!origSvg) {
-            Toast.error("Diagram SVG not found");
-            return;
-          }
-          
-          const clone = origSvg.cloneNode(true);
-          clone.setAttribute("width", bbox.width);
-          clone.setAttribute("height", bbox.height);
-          clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
-          clone.style.position = "static";
-          
-          // Create wrapper with white background
-          const wrapper = document.createElement("div");
-          wrapper.style.position = "fixed";
-          wrapper.style.left = "-99999px";
-          wrapper.style.top = "-99999px";
-          wrapper.style.width = bbox.width + "px";
-          wrapper.style.height = bbox.height + "px";
-          wrapper.style.backgroundColor = "white"; // White background for export
-          
-          wrapper.appendChild(clone);
-          document.body.appendChild(wrapper);
-          
-          const finish = (dataUrl, ext) => {
-            setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
-            setModal(MODAL.IMG);
-            document.body.removeChild(wrapper);
-          };
-          
-          const cleanup = () => {
-            if (wrapper && wrapper.parentNode) {
-              document.body.removeChild(wrapper);
-            }
-          };
-          
-          if (type === "png") {
-            toPng(wrapper, { pixelRatio: pngExportPixelRatio, backgroundColor: "#ffffff" })
-              .then((dataUrl) => finish(dataUrl, "png"))
-              .catch((e) => { 
-                console.error("Export PNG failed:", e);
-                Toast.error("Export PNG failed: " + (e?.message || "Unknown error"));
-                cleanup();
-              });
-          } else if (type === "jpeg") {
-            toJpeg(wrapper, { quality: 0.95, backgroundColor: "#ffffff" })
-              .then((dataUrl) => finish(dataUrl, "jpeg"))
-              .catch((e) => { 
-                console.error("Export JPEG failed:", e);
-                Toast.error("Export JPEG failed: " + (e?.message || "Unknown error"));
-                cleanup();
-              });
-          } else if (type === "svg") {
-            const filter = (node) => node.tagName !== "i";
-            toSvg(clone, { filter, backgroundColor: "#ffffff" })
-              .then((dataUrl) => finish(dataUrl, "svg"))
-              .catch((e) => { 
-                console.error("Export SVG failed:", e);
-                Toast.error("Export SVG failed: " + (e?.message || "Unknown error"));
-                cleanup();
-              });
-          }
-        } catch (error) {
-          console.error("Export error:", error);
-          Toast.error("Export failed: " + (error?.message || "Unknown error"));
+        const svg = document.getElementById("diagram");
+        if (!svg) {
+          Toast.error("Diagram SVG not found");
+          return;
+        }
+
+        const bbox = getDiagramBoundingBox();
+
+        // Save original attributes to restore after export
+        const savedWidth = svg.getAttribute("width");
+        const savedHeight = svg.getAttribute("height");
+        const savedViewBox = svg.getAttribute("viewBox");
+        const savedStyle = svg.style.cssText;
+
+        // Temporarily set export dimensions on the live SVG
+        svg.setAttribute("width", bbox.width);
+        svg.setAttribute("height", bbox.height);
+        svg.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
+        svg.style.position = "absolute";
+        svg.style.top = "0";
+        svg.style.left = "0";
+
+        const restore = () => {
+          if (savedWidth !== null) svg.setAttribute("width", savedWidth);
+          else svg.removeAttribute("width");
+          if (savedHeight !== null) svg.setAttribute("height", savedHeight);
+          else svg.removeAttribute("height");
+          if (savedViewBox !== null) svg.setAttribute("viewBox", savedViewBox);
+          else svg.removeAttribute("viewBox");
+          svg.style.cssText = savedStyle;
+        };
+
+        const finish = (dataUrl, ext) => {
+          restore();
+          setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
+          setModal(MODAL.IMG);
+        };
+
+        const onError = (e) => {
+          restore();
+          console.error("Export failed:", e);
+          Toast.error("Export failed: " + (e?.message || "Unknown error"));
+        };
+
+        if (type === "png") {
+          toPng(svg, { pixelRatio: pngExportPixelRatio, backgroundColor: "#ffffff" })
+            .then((dataUrl) => finish(dataUrl, "png"))
+            .catch(onError);
+        } else if (type === "jpeg") {
+          toJpeg(svg, { quality: 0.95, backgroundColor: "#ffffff" })
+            .then((dataUrl) => finish(dataUrl, "jpeg"))
+            .catch(onError);
+        } else if (type === "svg") {
+          toSvg(svg, { backgroundColor: "#ffffff" })
+            .then((dataUrl) => finish(dataUrl, "svg"))
+            .catch(onError);
         }
       }
 
