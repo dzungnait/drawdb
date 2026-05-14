@@ -227,8 +227,9 @@ export async function getCommits(gistId, perPage = 20, page = 1) {
 
 export async function getVersion(gistId, sha) {
   console.log("Getting version from API:", `${baseUrl}/designs/${gistId}/${sha}`);
-  const res = await axios.get(`${baseUrl}/designs/${gistId}/${sha}`);
-
+  const res = await axios.get(`${baseUrl}/designs/${gistId}/${sha}`,
+    { headers: getAuthHeaders(gistId) }
+  );
   return res.data;
 }
 
