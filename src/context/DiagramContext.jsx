@@ -5,6 +5,7 @@ import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
 import { emitOperation } from "../utils/operationEmitter";
+import { calculateAutoArrangePositions, generateTableUpdates } from "../utils/autoArrange";
 
 export const DiagramContext = createContext(null);
 
@@ -240,6 +241,53 @@ export default function DiagramContextProvider({ children }) {
     emitOperation({ type: "edit", target: "relationship", targetId: id, data: updatedValues });
   };
 
+  const autoArrangeAllTables = (addToHistory = true) => {
+    if (tables.length === 0) {
+      Toast.info(t("no_tables"));
+      return;
+    }
+
+    // Calculate new positions
+    const positions = calculateAutoArrangePositions(tables, relationships);
+    const updates = generateTableUpdates(tables, positions);
+
+    if (updates.length === 0) {
+      Toast.info(t("no_changes"));
+      return;
+    }
+
+    // Save original positions for undo
+    const originalPositions = updates.reduce((acc, update) => {
+      const table = tables.find((t) => t.id === update.id);
+      acc[update.id] = { x: table.x, y: table.y };
+      return acc;
+    }, {});
+
+    // Apply updates
+    updates.forEach(({ id, updates: tableUpdates }) => {
+      updateTable(id, tableUpdates);
+    });
+
+    // Add to undo history
+    if (addToHistory) {
+      setUndoStack((prev) => [
+        ...prev,
+        {
+          action: Action.EDIT,
+          element: ObjectType.TABLE,
+          component: "auto_arrange",
+          data: {
+            updates,
+            originalPositions,
+          },
+          message: t("arrange_tables"),
+        },
+      ]);
+      setRedoStack([]);
+      Toast.success(t("tables_arranged"));
+    }
+  };
+
   return (
     <DiagramContext.Provider
       value={{
@@ -250,6 +298,7 @@ export default function DiagramContextProvider({ children }) {
         updateField,
         deleteField,
         deleteTable,
+        autoArrangeAllTables,
         relationships,
         setRelationships,
         addRelationship,

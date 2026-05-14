@@ -185,6 +185,7 @@ export default function ControlPanel({
     updateRelationship,
     database,
     setDatabase,
+    autoArrangeAllTables,
   } = useDiagram();
   const { enums, setEnums, deleteEnum, addEnum, updateEnum } = useEnums();
   const { types, addType, deleteType, updateType, setTypes } = useTypes();
@@ -1507,6 +1508,10 @@ export default function ControlPanel({
         function: copyAsImage,
         shortcut: "Ctrl+Alt+C",
       },
+      arrange_tables: {
+        function: () => autoArrangeAllTables(),
+        disabled: layout.readOnly || tables.length < 2,
+      },
     },
     view: {
       header: {
@@ -1955,6 +1960,15 @@ export default function ControlPanel({
               disabled={layout.readOnly}
             >
               <IconAddNote />
+            </button>
+          </Tooltip>
+          <Tooltip content={t("arrange_tables")} position="bottom">
+            <button
+              className="py-1 px-2 hover-2 rounded-sm flex items-center disabled:opacity-50 text-lg"
+              onClick={() => autoArrangeAllTables()}
+              disabled={layout.readOnly || tables.length < 2}
+            >
+              <i className="fa-solid fa-grip" />
             </button>
           </Tooltip>
           <Divider layout="vertical" margin="8px" />
