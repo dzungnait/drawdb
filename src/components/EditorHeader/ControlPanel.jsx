@@ -1238,49 +1238,89 @@ export default function ControlPanel({
           {
             name: "PNG",
             function: () => {
-              toPng(document.getElementById("canvas"), {
-                pixelRatio: pngExportPixelRatio,
-              }).then(function (dataUrl) {
-                setExportData((prev) => ({
-                  ...prev,
-                  data: dataUrl,
-                  extension: "png",
-                }));
-              });
-              setModal(MODAL.IMG);
+              exportFullDiagram("png");
             },
           },
           {
             name: "JPEG",
             function: () => {
-              toJpeg(document.getElementById("canvas"), { quality: 0.95 }).then(
-                function (dataUrl) {
-                  setExportData((prev) => ({
-                    ...prev,
-                    data: dataUrl,
-                    extension: "jpeg",
-                  }));
-                },
-              );
-              setModal(MODAL.IMG);
+              exportFullDiagram("jpeg");
             },
           },
           {
             name: "SVG",
             function: () => {
-              const filter = (node) => node.tagName !== "i";
-              toSvg(document.getElementById("canvas"), { filter: filter }).then(
-                function (dataUrl) {
-                  setExportData((prev) => ({
-                    ...prev,
-                    data: dataUrl,
-                    extension: "svg",
-                  }));
-                },
-              );
-              setModal(MODAL.IMG);
+              exportFullDiagram("svg");
             },
           },
+            // --- Export full diagram as image (PNG, JPEG, SVG) ---
+            function getDiagramBoundingBox() {
+              // Calculate the bounding box of all tables, areas, notes
+              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+              const all = [
+                ...tables.map(t => ({x: t.x, y: t.y, w: settings.tableWidth, h: getTableHeight(t, settings.tableWidth, settings.showComments)})),
+                ...areas.map(a => ({x: a.x, y: a.y, w: a.width, h: a.height})),
+                ...notes.map(n => ({x: n.x, y: n.y, w: n.width ?? noteWidth, h: n.height}))
+              ];
+              all.forEach(({x, y, w, h}) => {
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x + w);
+                maxY = Math.max(maxY, y + h);
+              });
+              // Add some padding
+              const pad = 32;
+              return {
+                left: Math.floor(minX - pad),
+                top: Math.floor(minY - pad),
+                width: Math.ceil(maxX - minX + 2 * pad),
+                height: Math.ceil(maxY - minY + 2 * pad)
+              };
+            }
+
+            function exportFullDiagram(type) {
+              const bbox = getDiagramBoundingBox();
+              // Clone the SVG node and set its viewBox and size to the full diagram
+              const origSvg = document.getElementById("diagram");
+              if (!origSvg) {
+                Toast.error("Diagram SVG not found");
+                return;
+              }
+              const clone = origSvg.cloneNode(true);
+              clone.setAttribute("width", bbox.width);
+              clone.setAttribute("height", bbox.height);
+              clone.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
+              // Remove any transforms/styles that would restrict to viewport
+              clone.style.position = "static";
+              // Create a container for export
+              const container = document.createElement("div");
+              container.style.position = "fixed";
+              container.style.left = "-99999px";
+              container.style.top = "-99999px";
+              container.appendChild(clone);
+              document.body.appendChild(container);
+
+              // Export using html-to-image
+              const finish = (dataUrl, ext) => {
+                setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
+                setModal(MODAL.IMG);
+                document.body.removeChild(container);
+              };
+              if (type === "png") {
+                toPng(clone, { pixelRatio: pngExportPixelRatio })
+                  .then((dataUrl) => finish(dataUrl, "png"))
+                  .catch((e) => { Toast.error("Export PNG failed"); document.body.removeChild(container); });
+              } else if (type === "jpeg") {
+                toJpeg(clone, { quality: 0.95 })
+                  .then((dataUrl) => finish(dataUrl, "jpeg"))
+                  .catch((e) => { Toast.error("Export JPEG failed"); document.body.removeChild(container); });
+              } else if (type === "svg") {
+                const filter = (node) => node.tagName !== "i";
+                toSvg(clone, { filter })
+                  .then((dataUrl) => finish(dataUrl, "svg"))
+                  .catch((e) => { Toast.error("Export SVG failed"); document.body.removeChild(container); });
+              }
+            }
           {
             name: "JSON",
             function: () => {
