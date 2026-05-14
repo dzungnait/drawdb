@@ -1,166 +1,130 @@
 /**
- * Auto-arrange tables in a diagram to minimize crossings and group related tables
- * Uses a simple force-directed layout approach
+ * Auto-arrange tables in a diagram using hierarchical/layered layout
+ * Groups tables by relationship depth and arranges them in layers
  */
 
-const GRID_SIZE = 280; // Base spacing between tables
+const TABLE_WIDTH = 150;
+const TABLE_HEIGHT = 100;
+const HORIZONTAL_SPACING = 200; // Space between tables horizontally
+const VERTICAL_SPACING = 200; // Space between layers vertically
 const PADDING = 50; // Padding from edges
-const FORCE_STRENGTH = 0.5; // Force magnitude for repulsion
-const ITERATIONS = 50; // Number of layout iterations
 
 /**
- * Build adjacency map from relationships
+ * Build relationship graph from relationships
  */
-function buildAdjacencyMap(tables, relationships) {
-  const map = new Map();
+function buildRelationshipGraph(tables, relationships) {
+  const graph = new Map();
   
   tables.forEach(table => {
-    if (!map.has(table.id)) {
-      map.set(table.id, new Set());
+    if (!graph.has(table.id)) {
+      graph.set(table.id, { incoming: new Set(), outgoing: new Set() });
     }
   });
 
   relationships.forEach(rel => {
-    const startSet = map.get(rel.startTableId) || new Set();
-    const endSet = map.get(rel.endTableId) || new Set();
+    const start = graph.get(rel.startTableId) || { incoming: new Set(), outgoing: new Set() };
+    const end = graph.get(rel.endTableId) || { incoming: new Set(), outgoing: new Set() };
     
-    startSet.add(rel.endTableId);
-    endSet.add(rel.startTableId);
+    start.outgoing.add(rel.endTableId);
+    end.incoming.add(rel.startTableId);
     
-    map.set(rel.startTableId, startSet);
-    map.set(rel.endTableId, endSet);
+    graph.set(rel.startTableId, start);
+    graph.set(rel.endTableId, end);
   });
 
-  return map;
+  return graph;
 }
 
 /**
- * Find connected components (clusters of related tables)
+ * Calculate layer/depth for each table based on relationship distance
  */
-function findConnectedComponents(tables, adjacencyMap) {
+function calculateLayers(tables, graph) {
+  const layers = new Map(); // table.id -> layer number
   const visited = new Set();
-  const components = [];
-
-  tables.forEach(table => {
-    if (!visited.has(table.id)) {
-      const component = [];
-      const queue = [table.id];
-
-      while (queue.length > 0) {
-        const tableId = queue.shift();
-        if (visited.has(tableId)) continue;
-
-        visited.add(tableId);
-        component.push(tableId);
-
-        const neighbors = adjacencyMap.get(tableId) || new Set();
-        neighbors.forEach(neighborId => {
-          if (!visited.has(neighborId)) {
-            queue.push(neighborId);
-          }
-        });
-      }
-
-      components.push(component);
-    }
-  });
-
-  return components;
-}
-
-/**
- * Calculate initial positions based on components
- */
-function calculateInitialPositions(tableIds, componentIndex) {
-  const positions = new Map();
-  const tablesPerRow = Math.ceil(Math.sqrt(tableIds.length));
   
-  tableIds.forEach((tableId, index) => {
-    const row = Math.floor(index / tablesPerRow);
-    const col = index % tablesPerRow;
-    
-    const x = PADDING + col * GRID_SIZE + componentIndex * (GRID_SIZE * tablesPerRow);
-    const y = PADDING + row * GRID_SIZE;
-    
-    positions.set(tableId, { x, y });
+  // Find root tables (tables with no incoming relationships or only self-references)
+  const rootTables = tables.filter(t => {
+    const info = graph.get(t.id);
+    return info.incoming.size === 0;
   });
 
-  return positions;
-}
+  // If no root tables, use tables with highest outgoing count
+  if (rootTables.length === 0) {
+    const sorted = tables.sort((a, b) => {
+      const aOut = graph.get(a.id).outgoing.size;
+      const bOut = graph.get(b.id).outgoing.size;
+      return bOut - aOut;
+    });
+    rootTables.push(...sorted.slice(0, Math.max(1, Math.ceil(tables.length / 3))));
+  }
 
-/**
- * Apply force-directed layout to minimize crossings
- */
-function applyForceDirectedLayout(tables, adjacencyMap, initialPositions) {
-  const positions = new Map(initialPositions);
-  const velocity = new Map();
-  const DAMPING = 0.85;
-  const MIN_DISTANCE = 150;
-
-  // Initialize velocities
-  tables.forEach(table => {
-    velocity.set(table.id, { vx: 0, vy: 0 });
+  // BFS to assign layers
+  const queue = [];
+  rootTables.forEach(t => {
+    layers.set(t.id, 0);
+    queue.push(t.id);
+    visited.add(t.id);
   });
 
-  // Iterate to find better layout
-  for (let iter = 0; iter < ITERATIONS; iter++) {
-    tables.forEach(table => {
-      let fx = 0;
-      let fy = 0;
+  while (queue.length > 0) {
+    const tableId = queue.shift();
+    const currentLayer = layers.get(tableId);
+    const info = graph.get(tableId);
 
-      // Repulsive forces from all other tables
-      tables.forEach(other => {
-        if (table.id === other.id) return;
-
-        const pos1 = positions.get(table.id);
-        const pos2 = positions.get(other.id);
+    // Assign next layer to outgoing tables
+    info.outgoing.forEach(nextId => {
+      if (!visited.has(nextId)) {
+        visited.add(nextId);
+        const nextInfo = graph.get(nextId);
+        const incomingLayers = Array.from(nextInfo.incoming)
+          .map(id => layers.get(id) ?? -1)
+          .filter(l => l >= 0);
         
-        const dx = pos1.x - pos2.x;
-        const dy = pos1.y - pos2.y;
-        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-        
-        if (distance < MIN_DISTANCE * 2) {
-          const force = (MIN_DISTANCE - distance) * FORCE_STRENGTH;
-          fx += (dx / distance) * force;
-          fy += (dy / distance) * force;
-        }
-      });
-
-      // Attractive forces to connected tables
-      const neighbors = adjacencyMap.get(table.id) || new Set();
-      neighbors.forEach(neighborId => {
-        const pos1 = positions.get(table.id);
-        const pos2 = positions.get(neighborId);
-        
-        const dx = pos2.x - pos1.x;
-        const dy = pos2.y - pos1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-        
-        const force = distance * 0.1;
-        fx += (dx / distance) * force;
-        fy += (dy / distance) * force;
-      });
-
-      // Update velocity and position
-      let vel = velocity.get(table.id);
-      vel.vx = (vel.vx + fx) * DAMPING;
-      vel.vy = (vel.vy + fy) * DAMPING;
-
-      const pos = positions.get(table.id);
-      pos.x += vel.vx;
-      pos.y += vel.vy;
-      
-      // Boundary constraints
-      pos.x = Math.max(PADDING, pos.x);
-      pos.y = Math.max(PADDING, pos.y);
+        const nextLayer = Math.max(currentLayer + 1, ...incomingLayers.map(l => l + 1));
+        layers.set(nextId, nextLayer);
+        queue.push(nextId);
+      }
     });
   }
 
-  return positions;
+  // Assign remaining unvisited tables to a layer based on their connections
+  tables.forEach(t => {
+    if (!layers.has(t.id)) {
+      const info = graph.get(t.id);
+      if (info.incoming.size > 0) {
+        const maxIncomingLayer = Math.max(
+          ...Array.from(info.incoming)
+            .map(id => layers.get(id) ?? 0)
+        );
+        layers.set(t.id, maxIncomingLayer + 1);
+      } else {
+        layers.set(t.id, Math.max(...Array.from(layers.values()).filter(l => typeof l === 'number'), 0) + 1);
+      }
+    }
+  });
+
+  return layers;
 }
 
 /**
- * Main function to calculate new positions for all tables
+ * Organize tables by layer
+ */
+function organizeByLayers(tables, layers) {
+  const layerGroups = new Map();
+  
+  tables.forEach(table => {
+    const layer = layers.get(table.id) ?? 0;
+    if (!layerGroups.has(layer)) {
+      layerGroups.set(layer, []);
+    }
+    layerGroups.get(layer).push(table.id);
+  });
+
+  return layerGroups;
+}
+
+/**
+ * Main function to calculate new positions for all tables using hierarchical layout
  * Respects locked tables and areas
  */
 export function calculateAutoArrangePositions(tables, relationships, areas = []) {
@@ -174,30 +138,39 @@ export function calculateAutoArrangePositions(tables, relationships, areas = [])
     return new Map(); // Nothing to arrange
   }
 
-  // Build adjacency map only for unlocked tables
-  const adjacencyMap = buildAdjacencyMap(unlockedTables, relationships);
+  // Build relationship graph
+  const graph = buildRelationshipGraph(unlockedTables, relationships);
 
-  // Find connected components
-  const components = findConnectedComponents(unlockedTables, adjacencyMap);
+  // Calculate layers based on relationships
+  const layers = calculateLayers(unlockedTables, graph);
 
-  // Calculate positions for each component
+  // Organize tables by layer
+  const layerGroups = organizeByLayers(unlockedTables, layers);
+
+  // Calculate positions for each layer
   const positions = new Map();
-  let componentIndex = 0;
+  let currentY = PADDING;
+  const maxLayer = Math.max(...Array.from(layers.values()));
 
-  components.forEach(componentTableIds => {
-    const initialPositions = calculateInitialPositions(componentTableIds, componentIndex);
-    const optimizedPositions = applyForceDirectedLayout(
-      unlockedTables.filter(t => componentTableIds.includes(t.id)),
-      adjacencyMap,
-      initialPositions
-    );
+  for (let layerNum = 0; layerNum <= maxLayer; layerNum++) {
+    const tableIds = layerGroups.get(layerNum) || [];
+    
+    if (tableIds.length === 0) continue;
 
-    optimizedPositions.forEach((pos, tableId) => {
-      positions.set(tableId, pos);
+    // Calculate horizontal spacing for this layer
+    const layerWidth = tableIds.length * HORIZONTAL_SPACING;
+    const startX = Math.max(PADDING, (1920 - layerWidth) / 2); // Center layer (assuming ~1920px width)
+
+    // Position tables in this layer
+    tableIds.forEach((tableId, index) => {
+      const x = startX + index * HORIZONTAL_SPACING;
+      const y = currentY;
+      positions.set(tableId, { x, y });
     });
 
-    componentIndex++;
-  });
+    // Move to next layer
+    currentY += VERTICAL_SPACING;
+  }
 
   // Keep locked tables in their original positions
   lockedTables.forEach(table => {
