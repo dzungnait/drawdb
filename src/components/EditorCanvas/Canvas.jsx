@@ -42,6 +42,7 @@ export default function Canvas() {
   const {
     canvas: { viewBox },
     pointer,
+    isExporting,
   } = canvasContextValue;
 
   const { tables, updateTable, relationships, addRelationship, database } =
@@ -121,6 +122,7 @@ export default function Canvas() {
 
   const isInViewport = useCallback(
     (x, y, w, h) => {
+      if (isExporting) return true;
       return (
         x + w >= viewBox.left - CULL_MARGIN &&
         x <= viewBox.left + viewBox.width + CULL_MARGIN &&
@@ -128,7 +130,7 @@ export default function Canvas() {
         y <= viewBox.top + viewBox.height + CULL_MARGIN
       );
     },
-    [viewBox.left, viewBox.top, viewBox.width, viewBox.height],
+    [isExporting, viewBox.left, viewBox.top, viewBox.width, viewBox.height],
   );
 
   // Broadcast selection changes for collaboration

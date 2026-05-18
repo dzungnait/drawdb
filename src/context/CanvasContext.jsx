@@ -32,6 +32,8 @@ export const CanvasContext = createContext({
     style: "default",
     setStyle() {},
   },
+  isExporting: false,
+  setIsExporting() {},
 });
 
 export function CanvasContextProvider({ children, ...attrs }) {
@@ -117,6 +119,7 @@ export function CanvasContextProvider({ children, ...attrs }) {
     [pointerScreenCoords, toDiagramSpace],
   );
   const [pointerStyle, setPointerStyle] = useState("default");
+  const [isExporting, setIsExporting] = useState(false);
 
   /**
    * @param {PointerEvent} e
@@ -155,6 +158,8 @@ export function CanvasContextProvider({ children, ...attrs }) {
       style: pointerStyle,
       setStyle: setPointerStyle,
     },
+    isExporting,
+    setIsExporting,
   };
 
   return (

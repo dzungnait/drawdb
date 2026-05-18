@@ -24,7 +24,7 @@ import {
   Toast,
   Popconfirm,
 } from "@douyinfe/semi-ui";
-import { toPng, toJpeg, toSvg } from "html-to-image";
+// html-to-image removed — we now use manual SVG serialization + Canvas
 import {
   jsonToMySQL,
   jsonToPostgreSQL,
@@ -42,8 +42,11 @@ import {
   SIDESHEET,
   DB,
   IMPORT_FROM,
+  Cardinality,
   noteWidth,
   pngExportPixelRatio,
+  noteFold,
+  noteRadius,
 } from "../../data/constants";
 import jsPDF from "jspdf";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -63,6 +66,7 @@ import {
   useNotes,
   useAreas,
   useFullscreen,
+  useCanvas,
 } from "../../hooks";
 import { enterFullscreen, exitFullscreen } from "../../utils/fullscreen";
 import { dataURItoBlob } from "../../utils/utils";
@@ -81,10 +85,349 @@ import { socials } from "../../data/socials";
 import { toDBML } from "../../utils/exportAs/dbml";
 import { exportSavedData } from "../../utils/exportSavedData";
 import { nanoid } from "nanoid";
-import { getTableHeight } from "../../utils/utils";
+import { getTableHeight, getCommentHeight } from "../../utils/utils";
+import { calcPath } from "../../utils/calcPath";
+import { dbToTypes } from "../../data/datatypes";
 import { deleteFromCache, STORAGE_KEY } from "../../utils/cache";
 import { useLiveQuery } from "dexie-react-hooks";
 import { DateTime } from "luxon";
+
+// ─── Pure-SVG export helpers (module-level, no React / DOM dependency) ────────
+
+/**
+ * Maps Tailwind text-colour classes (as used in dbToTypes) to plain hex values
+ * so the pure-SVG export renderer can colour type names without any CSS.
+ */
+const TAILWIND_HEX = {
+  "text-orange-500":  "#f97316",
+  "text-yellow-500":  "#eab308",
+  "text-lime-500":    "#84cc16",
+  "text-violet-500":  "#8b5cf6",
+  "text-emerald-500": "#10b981",
+  "text-sky-500":     "#0ea5e9",
+  "text-indigo-500":  "#6366f1",
+  "text-rose-500":    "#f43f5e",
+  "text-fuchsia-500": "#d946ef",
+  "text-slate-500":   "#64748b",
+  "text-zinc-500":    "#71717a",
+  "text-cyan-500":    "#06b6d4",
+};
+
+/**
+ * Given a calcPath "d" string, returns the (cx, cy) coords where the
+ * cardinality badge circles should be rendered.
+ * Parses only M/L commands (A arcs are ignored – they don't change the
+ * start/end segment direction).
+ */
+function _cardinalityPoints(d, offset = 28) {
+  const moves = [...d.matchAll(/[ML]\s*([\d.eE+-]+)\s+([\d.eE+-]+)/g)].map(
+    (m) => ({ x: parseFloat(m[1]), y: parseFloat(m[2]) }),
+  );
+  if (moves.length < 2) return null;
+  const start    = moves[0];
+  const firstNext = moves[1];
+  const end      = moves[moves.length - 1];
+  const prevEnd  = moves[moves.length - 2];
+  // Start cardinality: offset px along first horizontal segment
+  const startRight = firstNext.x >= start.x;
+  const csX = startRight ? start.x + offset : start.x - offset;
+  // End cardinality: offset px back along last horizontal segment
+  const endFromLeft = prevEnd.x <= end.x;
+  const ceX = endFromLeft ? end.x - offset : end.x + offset;
+  return { csX, csY: start.y, ceX, ceY: end.y };
+}
+
+/** Escape characters that are special in XML/SVG attribute values and text. */
+function _escapeXml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Build a fully self-contained SVG string from raw diagram data.
+ *
+ * Every element is expressed as plain SVG primitives (rect, path, text).
+ * There is NO <foreignObject> and NO external CSS, so:
+ *   • the SVG can be loaded as <img src="data:…"> without any CSS blocking,
+ *   • drawing it onto a canvas never triggers a SecurityError (no taint), and
+ *   • the result looks correct in every browser / export format.
+ */
+function _buildExportSvg({
+  tables, areas, notes, relationships, settings, bbox, database,
+}) {
+  const { tableWidth, mode, showComments, showDataTypes, showCardinality } = settings;
+  const isDark = mode === "dark";
+
+  // ── Tailwind-equivalent colour tokens ──────────────────────────────────────
+  const tableBg        = isDark ? "#27272a" : "#f4f4f5"; // zinc-800 / zinc-100
+  const tableHeaderBg  = isDark ? "#18181b" : "#e4e4e7"; // zinc-900 / zinc-200
+  const tableBorderCol = isDark ? "#52525b" : "#d4d4d8"; // zinc-600 / zinc-300
+  const tableTextCol   = isDark ? "#e4e4e7" : "#27272a"; // zinc-200 / zinc-800
+  const headerDivider  = "#9ca3af";                       // gray-400
+  const mutedTextCol   = isDark ? "#a1a1aa" : "#71717a"; // zinc-400 / zinc-500
+  const fieldDivider   = "#9ca3af";                       // always gray-400 (border-gray-400 in Table.jsx)
+  const canvasBg       = isDark ? "#16161a" : "#ffffff";
+  const areaBorder     = "#94a3b8";                       // slate-400
+
+  // ── Layout constants (must match Table.jsx / constants.js) ─────────────────
+  const HEADER_H      = 50;  // tableHeaderHeight  = colorStrip(10) + title(40)
+  const COLOR_STRIP_H = 10;  // h-[10px] in Table.jsx
+  const TITLE_H       = 40;  // h-[40px] in Table.jsx
+  const FIELD_H       = 36;  // tableFieldHeight
+  const FONT          = "ui-sans-serif,system-ui,-apple-system,sans-serif";
+
+  const parts = [];
+
+  // ── Canvas background ───────────────────────────────────────────────────────
+  parts.push(
+    `<rect x="${bbox.left}" y="${bbox.top}" width="${bbox.width}" height="${bbox.height}" fill="${canvasBg}"/>`,
+  );
+
+  // ── Areas ───────────────────────────────────────────────────────────────────
+  for (const a of areas) {
+    const fill = `${a.color || "#94a3b8"}66`;
+    parts.push(
+      `<rect x="${a.x}" y="${a.y}" width="${Math.max(0, a.width)}" height="${Math.max(0, a.height)}"` +
+      ` rx="4" fill="${fill}" stroke="${areaBorder}" stroke-width="2"/>`,
+    );
+    if (a.name) {
+      parts.push(
+        `<text x="${a.x + 8}" y="${a.y + 20}" font-family="${FONT}" font-size="14"` +
+        ` fill="${tableTextCol}">${_escapeXml(a.name)}</text>`,
+      );
+    }
+  }
+
+  // ── Relationships ───────────────────────────────────────────────────────────
+  const tableMap = new Map(tables.map((t) => [t.id, t]));
+  for (const rel of relationships) {
+    const startT = tableMap.get(rel.startTableId);
+    const endT   = tableMap.get(rel.endTableId);
+    if (!startT || !endT || startT.hidden || endT.hidden) continue;
+
+    const startFi = startT.fields.findIndex((f) => f.id === rel.startFieldId);
+    const endFi   = endT.fields.findIndex((f) => f.id === rel.endFieldId);
+    if (startFi === -1 || endFi === -1) continue;
+
+    const pathValues = {
+      startFieldIndex: startFi,
+      endFieldIndex:   endFi,
+      startTable: { x: startT.x, y: startT.y, comment: startT.comment },
+      endTable:   { x: endT.x,   y: endT.y,   comment: endT.comment },
+    };
+
+    const d = calcPath(pathValues, tableWidth, 1, showComments);
+    if (!d) continue;
+
+    parts.push(
+      `<path d="${_escapeXml(d)}" fill="none"` +
+      ` stroke="grey" stroke-width="2.5" stroke-linecap="butt"/>`,
+    );
+
+    // ── Cardinality badges (grey pill + white text, same as UI) ────────────
+    if (showCardinality !== false) {
+      let cardStart = "1";
+      let cardEnd   = "1";
+      switch (rel.cardinality) {
+        case Cardinality.MANY_TO_ONE:
+          cardStart = rel.manyLabel || "n";
+          cardEnd   = "1";
+          break;
+        case Cardinality.ONE_TO_MANY:
+          cardStart = "1";
+          cardEnd   = rel.manyLabel || "n";
+          break;
+        default: // ONE_TO_ONE and unknown
+          break;
+      }
+
+      const pts = _cardinalityPoints(d);
+      if (pts) {
+        const BADGE_H = 24; // r*2 where r=12
+        const BADGE_R = 12;
+        const renderBadge = (cx, cy, text) => {
+          const halfW = Math.max(13, text.length * 6 + 7); // rough text-width estimate
+          return (
+            `<rect x="${(cx - halfW).toFixed(1)}" y="${(cy - BADGE_R).toFixed(1)}"` +
+            ` width="${halfW * 2}" height="${BADGE_H}" rx="${BADGE_R}" ry="${BADGE_R}" fill="grey"/>` +
+            `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" fill="white" font-size="14"` +
+            ` text-anchor="middle" dominant-baseline="central">${_escapeXml(text)}</text>`
+          );
+        };
+        parts.push(renderBadge(pts.csX, pts.csY, cardStart));
+        parts.push(renderBadge(pts.ceX, pts.ceY, cardEnd));
+      }
+    }
+  }
+
+  // ── Tables ──────────────────────────────────────────────────────────────────
+  for (const table of tables) {
+    if (table.hidden) continue;
+
+    const commentH = getCommentHeight(table.comment, tableWidth, showComments);
+    const totalH   = getTableHeight(table, tableWidth, showComments);
+    const tx = table.x;
+    const ty = table.y;
+    const tw = tableWidth;
+    const color = table.color || "#5891db";
+
+    parts.push(`<g>`);
+
+    // background rect (rounded corners)
+    parts.push(
+      `<rect x="${tx}" y="${ty}" width="${tw}" height="${totalH}" rx="6"` +
+      ` fill="${tableBg}" stroke="${tableBorderCol}" stroke-width="2"/>`,
+    );
+
+    // colour strip at the top (rx rounds all corners; main rect clips visually)
+    parts.push(
+      `<rect x="${tx}" y="${ty}" width="${tw}" height="${COLOR_STRIP_H}" rx="6"` +
+      ` fill="${color}"/>`,
+    );
+    // square off the bottom corners of the strip so it blends into the header
+    parts.push(
+      `<rect x="${tx}" y="${ty + COLOR_STRIP_H / 2}" width="${tw}" height="${COLOR_STRIP_H / 2}"` +
+      ` fill="${color}"/>`,
+    );
+
+    // header background
+    parts.push(
+      `<rect x="${tx}" y="${ty + COLOR_STRIP_H}" width="${tw}" height="${TITLE_H}"` +
+      ` fill="${tableHeaderBg}"/>`,
+    );
+
+    // header bottom border
+    parts.push(
+      `<line x1="${tx}" y1="${ty + HEADER_H}" x2="${tx + tw}" y2="${ty + HEADER_H}"` +
+      ` stroke="${headerDivider}" stroke-width="1"/>`,
+    );
+
+    // table name
+    const nameY = ty + COLOR_STRIP_H + TITLE_H * 0.65;
+    parts.push(
+      `<text x="${tx + 12}" y="${nameY.toFixed(1)}" font-family="${FONT}" font-size="14"` +
+      ` font-weight="bold" fill="${tableTextCol}">${_escapeXml(table.name)}</text>`,
+    );
+
+    // field rows
+    const fieldsStartY = ty + HEADER_H + commentH;
+    table.fields.forEach((field, i) => {
+      const rowY  = fieldsStartY + i * FIELD_H;
+      const midY  = (rowY + FIELD_H / 2).toFixed(1);
+      const textY = (rowY + FIELD_H * 0.62).toFixed(1);
+
+      // divider line above every row except the first
+      // (equivalent to border-b border-gray-400 on all-but-last in Table.jsx)
+      if (i > 0) {
+        parts.push(
+          `<line x1="${tx}" y1="${rowY}" x2="${tx + tw}" y2="${rowY}"` +
+          ` stroke="${fieldDivider}" stroke-width="1"/>`,
+        );
+      }
+
+      // blue bullet dot — matches w-[10px] h-[10px] bg-[#2f68adcc] rounded-full
+      parts.push(`<circle cx="${tx + 10}" cy="${midY}" r="4.5" fill="#2f68ad" fill-opacity="0.8"/>`);
+
+      // field name (shifted right to clear the dot)
+      parts.push(
+        `<text x="${tx + 22}" y="${textY}" font-family="${FONT}" font-size="13"` +
+        ` fill="${tableTextCol}">${_escapeXml(field.name)}</text>`,
+      );
+
+      // right-side: [⚿?] [??] [TYPE(size)] — only when showDataTypes is on
+      if (showDataTypes !== false) {
+        const typeEntry    = dbToTypes[database]?.[field.type];
+        const typeColorHex = TAILWIND_HEX[typeEntry?.color] ?? mutedTextCol;
+        const isSized      = typeEntry?.isSized || typeEntry?.hasPrecision;
+        const typeStr      = field.type +
+          (isSized && field.size && field.size !== "" ? `(${field.size})` : "");
+
+        let tspan = "";
+        if (field.primary) {
+          // small key indicator in amber/gold
+          tspan += `<tspan fill="#ca8a04">⚿ </tspan>`;
+        }
+        if (!field.notNull) {
+          tspan += `<tspan fill="${mutedTextCol}">? </tspan>`;
+        }
+        tspan += `<tspan fill="${typeColorHex}">${_escapeXml(typeStr)}</tspan>`;
+
+        parts.push(
+          `<text x="${(tx + tw - 10).toFixed(1)}" y="${textY}"` +
+          ` font-family="monospace,${FONT}" font-size="11" text-anchor="end">${tspan}</text>`,
+        );
+      }
+    });
+
+    parts.push(`</g>`);
+  }
+
+  // ── Notes ───────────────────────────────────────────────────────────────────
+  for (const note of notes) {
+    const w  = note.width  ?? noteWidth;
+    const h  = note.height ?? 100;
+    const nx = note.x;
+    const ny = note.y;
+    const nc = note.color || "#fcf7ac";
+    const ns = "rgb(168,162,158)";
+    const FOLD = noteFold;
+    const NR   = noteRadius;
+
+    const mainD =
+      `M${nx + FOLD} ${ny}` +
+      ` L${nx + w - NR} ${ny} A${NR} ${NR} 0 0 1 ${nx + w} ${ny + NR}` +
+      ` L${nx + w} ${ny + h - NR} A${NR} ${NR} 0 0 1 ${nx + w - NR} ${ny + h}` +
+      ` L${nx + NR} ${ny + h} A${NR} ${NR} 0 0 1 ${nx} ${ny + h - NR}` +
+      ` L${nx} ${ny + FOLD}`;
+
+    const foldD =
+      `M${nx} ${ny + FOLD}` +
+      ` L${nx + FOLD - NR} ${ny + FOLD}` +
+      ` A${NR} ${NR} 0 0 0 ${nx + FOLD} ${ny + FOLD - NR}` +
+      ` L${nx + FOLD} ${ny} L${nx} ${ny + FOLD} Z`;
+
+    parts.push(
+      `<path d="${mainD}" fill="${nc}" stroke="${ns}" stroke-width="2"/>`,
+      `<path d="${foldD}" fill="${nc}" stroke="${ns}" stroke-width="2"/>`,
+    );
+
+    if (note.title) {
+      parts.push(
+        `<text x="${nx + FOLD + 4}" y="${ny + 16}" font-family="${FONT}" font-size="13"` +
+        ` font-weight="600" fill="#111827">${_escapeXml(note.title)}</text>`,
+      );
+    }
+
+    if (note.content) {
+      const contentY = ny + (note.title ? 36 : 20);
+      const tspans = String(note.content)
+        .split("\n")
+        .map((ln, i) =>
+          i === 0
+            ? `<tspan x="${nx + 12}" dy="0">${_escapeXml(ln)}</tspan>`
+            : `<tspan x="${nx + 12}" dy="18">${_escapeXml(ln)}</tspan>`,
+        )
+        .join("");
+      parts.push(
+        `<text x="${nx + 12}" y="${contentY}" font-family="${FONT}" font-size="13"` +
+        ` fill="#1f2937">${tspans}</text>`,
+      );
+    }
+  }
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg"`,
+    `  viewBox="${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}"`,
+    `  width="${bbox.width}" height="${bbox.height}">`,
+    parts.join("\n"),
+    `</svg>`,
+  ].join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function ControlPanel({
   diagramId,
@@ -98,61 +441,38 @@ export default function ControlPanel({
       function getDiagramBoundingBox() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-        // Collect all elements to export
         const all = [
-          ...tables.map(t => ({
-            x: t.x ?? 0, // Ensure x is defined
-            y: t.y ?? 0, // Ensure y is defined
-            w: settings.tableWidth ?? 100, // Default width if undefined
-            h: getTableHeight(t, settings.tableWidth, settings.showComments) ?? 50 // Default height if undefined
+          ...tables.map((t) => ({
+            x: t.x ?? 0,
+            y: t.y ?? 0,
+            w: settings.tableWidth ?? 100,
+            h: getTableHeight(t, settings.tableWidth, settings.showComments) ?? 50,
           })),
-          ...areas.map(a => ({
-            x: a.x ?? 0,
-            y: a.y ?? 0,
-            w: a.width ?? 100,
-            h: a.height ?? 100
-          })),
-          ...notes.map(n => ({
-            x: n.x ?? 0,
-            y: n.y ?? 0,
-            w: n.width ?? noteWidth,
-            h: n.height ?? 50
-          }))
+          ...areas.map((a) => ({ x: a.x ?? 0, y: a.y ?? 0, w: a.width ?? 100, h: a.height ?? 100 })),
+          ...notes.map((n) => ({ x: n.x ?? 0, y: n.y ?? 0, w: n.width ?? noteWidth, h: n.height ?? 50 })),
         ];
 
-        // Calculate bounding box
         if (all.length > 0) {
-          all.forEach(({x, y, w, h}) => {
+          all.forEach(({ x, y, w, h }) => {
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             maxX = Math.max(maxX, x + w);
             maxY = Math.max(maxY, y + h);
           });
         } else {
-          // Fallback if no elements - use current viewport
-          minX = 0;
-          minY = 0;
-          maxX = 1920;
-          maxY = 1080;
+          minX = 0; minY = 0; maxX = 1920; maxY = 1080;
         }
 
-        // Validate dimensions
         if (!isFinite(minX) || !isFinite(maxX) || minX >= maxX || minY >= maxY) {
-          // Fallback to viewport size
-          return {
-            left: 0,
-            top: 0,
-            width: 1920,
-            height: 1080
-          };
+          return { left: 0, top: 0, width: 1920, height: 1080 };
         }
 
-        const pad = 50; // Increased padding to ensure nothing is cut off
+        const pad = 40;
         return {
-          left: Math.floor(minX - pad),
-          top: Math.floor(minY - pad),
-          width: Math.ceil(maxX - minX + 2 * pad),
-          height: Math.ceil(maxY - minY + 2 * pad)
+          left:   Math.floor(minX - pad),
+          top:    Math.floor(minY - pad),
+          width:  Math.ceil(maxX - minX + 2 * pad),
+          height: Math.ceil(maxY - minY + 2 * pad),
         };
       }
 
@@ -162,85 +482,91 @@ export default function ControlPanel({
           return;
         }
 
-        const svg = document.getElementById("diagram");
-        if (!svg) {
-          Toast.error("Diagram SVG not found");
+        const bbox = getDiagramBoundingBox();
+
+        // Build a pure-SVG string from data — no DOM cloning, no foreignObject,
+        // no CSS-inlining required. Works in all browsers without canvas taint.
+        const svgString = _buildExportSvg({
+          tables, areas, notes, relationships, settings, bbox, database,
+        });
+
+        if (type === "svg") {
+          const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+          const reader = new FileReader();
+          reader.onload = () => {
+            setExportData((prev) => ({ ...prev, data: reader.result, extension: "svg" }));
+            setModal(MODAL.IMG);
+          };
+          reader.onerror = () => Toast.error("Export failed");
+          reader.readAsDataURL(blob);
           return;
         }
+        // Open the modal immediately; the spinner renders while we do the
+        // (async) canvas conversion.  We use canvas.toBlob() → blob URL rather
+        // than toDataURL() because toDataURL() can produce a multi-MB string
+        // that some browsers refuse to use as <img src>.
+        setExportData((prev) => ({ ...prev, data: null, extension: type }));
+        setModal(MODAL.IMG);
 
-        const bbox = getDiagramBoundingBox();
-        const savedTransform = { pan: { ...transform.pan }, zoom: transform.zoom };
+        // Give React one tick to commit the "spinner" state before the
+        // synchronous SVG-encoding / canvas work starts.
+        setTimeout(() => {
+          try {
+            const svgDataUrl =
+              "data:image/svg+xml;charset=utf-8," +
+              encodeURIComponent(svgString);
 
-        // Step 1: Set zoom extremely small so ALL tables pass isInViewport culling
-        // and get rendered into the DOM. Pan to diagram center.
-        const panX = bbox.left + bbox.width / 2;
-        const panY = bbox.top + bbox.height / 2;
-        setTransform({ pan: { x: panX, y: panY }, zoom: 0.001 });
+            const pixelRatio = type === "png" ? pngExportPixelRatio : 1;
 
-        // Step 2: Wait 2 animation frames for React to re-render with all tables visible
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // Save SVG original state
-            const savedViewBox = svg.getAttribute("viewBox");
-            const savedStyle = svg.style.cssText;
+            // Cap canvas dimensions so we never exceed Chrome's 8 192 px limit.
+            const MAX_DIM = 8192;
+            const rawW = Math.round(bbox.width  * pixelRatio);
+            const rawH = Math.round(bbox.height * pixelRatio);
+            const dimScale = Math.min(1, MAX_DIM / Math.max(rawW, rawH, 1));
+            const canvasEl = document.createElement("canvas");
+            canvasEl.width  = Math.round(rawW * dimScale);
+            canvasEl.height = Math.round(rawH * dimScale);
 
-            // Step 3: Override SVG dimensions and viewBox for export
-            // Inline style overrides Tailwind's w-full h-full
-            svg.style.width = bbox.width + "px";
-            svg.style.height = bbox.height + "px";
-            svg.style.position = "absolute";
-            svg.style.top = "0";
-            svg.style.left = "0";
-            svg.setAttribute("viewBox", `${bbox.left} ${bbox.top} ${bbox.width} ${bbox.height}`);
-
-            const restore = () => {
-              svg.style.cssText = savedStyle;
-              if (savedViewBox !== null) svg.setAttribute("viewBox", savedViewBox);
-              else svg.removeAttribute("viewBox");
-              setTransform(savedTransform);
-            };
-
-            const finish = (dataUrl, ext) => {
-              restore();
-              setExportData((prev) => ({ ...prev, data: dataUrl, extension: ext }));
-              setModal(MODAL.IMG);
-            };
-
-            const onError = (e) => {
-              restore();
-              console.error("Export failed:", e);
-              Toast.error("Export failed: " + (e?.message || "Unknown error"));
-            };
-
-            if (type === "png") {
-              toPng(svg, {
-                pixelRatio: pngExportPixelRatio,
-                backgroundColor: "#ffffff",
-                width: bbox.width,
-                height: bbox.height,
-              })
-                .then((dataUrl) => finish(dataUrl, "png"))
-                .catch(onError);
-            } else if (type === "jpeg") {
-              toJpeg(svg, {
-                quality: 0.95,
-                backgroundColor: "#ffffff",
-                width: bbox.width,
-                height: bbox.height,
-              })
-                .then((dataUrl) => finish(dataUrl, "jpeg"))
-                .catch(onError);
-            } else if (type === "svg") {
-              toSvg(svg, {
-                backgroundColor: "#ffffff",
-                width: bbox.width,
-                height: bbox.height,
-              })
-                .then((dataUrl) => finish(dataUrl, "svg"))
-                .catch(onError);
+            const ctx = canvasEl.getContext("2d");
+            if (!ctx) {
+              Toast.error("Canvas unavailable — diagram may be too large");
+              setModal(MODAL.NONE);
+              return;
             }
-          });
-        });
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+              const mime = type === "jpeg" ? "image/jpeg" : "image/png";
+              canvasEl.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    Toast.error("Export failed: image encoding returned empty");
+                    setModal(MODAL.NONE);
+                    return;
+                  }
+                  // Blob URL has no size constraints — safe for any diagram.
+                  const blobUrl = URL.createObjectURL(blob);
+                  setExportData((prev) => ({ ...prev, data: blobUrl }));
+                },
+                mime,
+                type === "jpeg" ? 0.95 : undefined,
+              );
+            };
+            img.onerror = () => {
+              Toast.error("Export failed: SVG could not be rendered");
+              setModal(MODAL.NONE);
+            };
+            img.src = svgDataUrl;
+          } catch (e) {
+            console.error("Export error:", e);
+            Toast.error("Export failed: " + (e?.message ?? "unknown error"));
+            setModal(MODAL.NONE);
+          }
+        }, 50);
       }
 
   // --- State for export data ---
@@ -255,6 +581,7 @@ export default function ControlPanel({
   const [importFrom, setImportFrom] = useState(IMPORT_FROM.JSON);
   const [importDb, setImportDb] = useState(DB.GENERIC);
   const { saveState, setSaveState } = useSaveState();
+  const { setIsExporting } = useCanvas();
   const { layout, setLayout } = useLayout();
   const { settings, setSettings } = useSettings();
   const {
