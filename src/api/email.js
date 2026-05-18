@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "https://drawdb-server-production-524b.up.railway.app";
+const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "drawdb-server-production.up.railway.app";
 
 
 export async function send(subject, message, attachments) {
