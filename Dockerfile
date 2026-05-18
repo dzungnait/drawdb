@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+ARG VITE_BACKEND_URL
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 RUN npm run build
 
 # Stage 2: Setup the Nginx Server to serve the app

@@ -1,8 +1,7 @@
 import { io } from "socket.io-client";
 
 const baseUrl =
-  import.meta.env.VITE_BACKEND_URL ??
-  "https://drawdb-server-production.up.railway.app/";
+  import.meta.env.VITE_BACKEND_URL;
 
 let socket = null;
 
