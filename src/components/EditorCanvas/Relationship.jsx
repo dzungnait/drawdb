@@ -37,6 +37,11 @@ export default memo(function Relationship({ data, tableMap }) {
 
   const pathRef = useRef();
   const labelRef = useRef();
+  const [pathMounted, setPathMounted] = useState(false);
+
+  useEffect(() => {
+    setPathMounted(true);
+  }, []);
 
   let cardinalityStart = "1";
   let cardinalityEnd = "1";
@@ -134,7 +139,7 @@ export default memo(function Relationship({ data, tableMap }) {
           fill="none"
           cursor="pointer"
         />
-        {settings.showRelationshipLabels && (
+        {pathMounted && settings.showRelationshipLabels && (
           <text
             x={labelX}
             y={labelY}
@@ -147,7 +152,7 @@ export default memo(function Relationship({ data, tableMap }) {
             {data.name}
           </text>
         )}
-        {pathRef.current && settings.showCardinality && (
+        {pathMounted && settings.showCardinality && (
           <>
             <CardinalityLabel
               x={cardinalityStartX}

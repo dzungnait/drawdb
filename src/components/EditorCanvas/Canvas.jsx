@@ -143,6 +143,11 @@ export default function Canvas() {
     }
   }, [selectedElement.element, selectedElement.id, broadcastSelection]);
 
+  // Set grab cursor when entering view (readOnly) mode
+  useEffect(() => {
+    pointer.setStyle(layout.readOnly ? "grab" : "default");
+  }, [layout.readOnly]);
+
   const isSameElement = (el1, el2) => {
     return el1.id === el2.id && el1.type === el2.type;
   };
@@ -482,7 +487,14 @@ export default function Canvas() {
     const isMouseLeftButton = e.button === 0;
     const isMouseMiddleButton = e.button === 1;
 
-    if (isMouseLeftButton) {
+    if (isMouseLeftButton && layout.readOnly) {
+      setPanning({
+        isPanning: true,
+        panStart: transform.pan,
+        cursorStart: pointer.spaces.screen,
+      });
+      pointer.setStyle("grabbing");
+    } else if (isMouseLeftButton) {
       setBulkSelectRect({
         x1: pointer.spaces.diagram.x,
         y1: pointer.spaces.diagram.y,
@@ -591,7 +603,7 @@ export default function Canvas() {
       // setSaveState(State.SAVING); // Let auto save handle this with 5s debounce
     }
     setPanning((old) => ({ ...old, isPanning: false }));
-    pointer.setStyle("default");
+    pointer.setStyle(layout.readOnly ? "grab" : "default");
 
     if (linking) handleLinking();
     setLinking(false);
