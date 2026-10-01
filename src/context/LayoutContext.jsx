@@ -11,6 +11,10 @@ const defaultLayout = {
   toolbar: true,
   dbmlEditor: false,
   readOnly: false,
+  // User-toggled view mode. Kept apart from readOnly so leaving view mode
+  // never unlocks a diagram that is read-only for another reason
+  // (viewing an old version, no write access).
+  viewMode: false,
 };
 
 export default function LayoutContextProvider({ children }) {
@@ -44,6 +48,7 @@ export default function LayoutContextProvider({ children }) {
     toolbar: queryConfig.hideToolbar.isForced(hideToolbarParam)
       ? false
       : layout.toolbar,
+    readOnly: layout.readOnly || layout.viewMode,
   };
 
   return (

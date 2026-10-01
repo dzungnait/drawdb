@@ -223,6 +223,57 @@ export default function DiagramContextProvider({ children }) {
     });
   };
 
+  // Inserts a copy of the field right after the original. Without `data`
+  // a new copy is built; with `data` (redo) that exact field is re-inserted.
+  const duplicateField = (tid, fid, addToHistory = true, data = null) => {
+    const table = tables.find((t) => t.id === tid);
+    if (!table) return;
+
+    let field = data?.field;
+    let index = data?.index;
+    if (!field) {
+      const sourceIndex = table.fields.findIndex((f) => f.id === fid);
+      if (sourceIndex === -1) return;
+      const source = table.fields[sourceIndex];
+      const names = new Set(table.fields.map((f) => f.name));
+      const base = `${source.name || "field"}_copy`;
+      let name = base;
+      for (let i = 2; names.has(name); i++) name = `${base}${i}`;
+      field = {
+        ...source,
+        id: nanoid(),
+        name,
+        // A copy can't share the original's key role
+        primary: false,
+        increment: false,
+      };
+      index = sourceIndex + 1;
+    }
+
+    const fields = table.fields.slice();
+    fields.splice(index, 0, field);
+    updateTable(tid, { fields });
+
+    if (addToHistory) {
+      setUndoStack((prev) => [
+        ...prev,
+        {
+          action: Action.EDIT,
+          element: ObjectType.TABLE,
+          component: "field_duplicate",
+          tid,
+          fid: field.id,
+          data: { field, index },
+          message: t("edit_table", {
+            tableName: table.name,
+            extra: "[duplicate field]",
+          }),
+        },
+      ]);
+      setRedoStack([]);
+    }
+  };
+
   const addRelationship = (data, addToHistory = true) => {
     if (addToHistory) {
       setRelationships((prev) => {
@@ -323,6 +374,7 @@ export default function DiagramContextProvider({ children }) {
         updateTable,
         updateField,
         deleteField,
+        duplicateField,
         deleteTable,
         relationships,
         setRelationships,

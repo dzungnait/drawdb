@@ -16,3 +16,12 @@ export const gistBackendUrl = trimSlash(
     import.meta.env.VITE_BACKEND_URL ||
     "http://localhost:5000",
 );
+
+// Links to the upstream drawDB community (Discord, X, GitHub, sponsor, bug
+// report). Off unless explicitly enabled, since this fork doesn't use them.
+export const showCommunityLinks =
+  String(
+    runtime.showCommunityLinks ??
+      import.meta.env.VITE_SHOW_COMMUNITY_LINKS ??
+      "false",
+  ) === "true";

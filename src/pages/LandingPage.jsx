@@ -17,6 +17,7 @@ import axios from "axios";
 import { languages } from "../i18n/i18n";
 import { Tweet } from "react-tweet";
 import { socials } from "../data/socials";
+import { showCommunityLinks } from "../config";
 
 function shortenNumber(number) {
   if (number < 1000) return number;
@@ -39,7 +40,7 @@ export default function LandingPage() {
     document.title =
       "drawDB | Online database diagram editor and SQL generator";
 
-    fetchStats();
+    if (showCommunityLinks) fetchStats();
   }, []);
 
   return (
@@ -111,22 +112,26 @@ export default function LandingPage() {
             <img src={screenshot} className="mx-auto" />
           </div>
           <div className="flex justify-center items-center gap-28 md:block">
-            <div className="text-center mb-4">
-              <div className="text-5xl md:text-3xl font-bold text-sky-800">
-                {shortenNumber(stats.stars)}
-              </div>
-              <div className="ms-1 mt-1 font-medium tracking-wide">
-                GitHub stars
-              </div>
-            </div>
-            <div className="text-center mb-4">
-              <div className="text-5xl md:text-3xl font-bold text-sky-800">
-                {shortenNumber(stats.forks)}
-              </div>
-              <div className="ms-1 mt-1 font-medium tracking-wide">
-                GitHub forks
-              </div>
-            </div>
+            {showCommunityLinks && (
+              <>
+                <div className="text-center mb-4">
+                  <div className="text-5xl md:text-3xl font-bold text-sky-800">
+                    {shortenNumber(stats.stars)}
+                  </div>
+                  <div className="ms-1 mt-1 font-medium tracking-wide">
+                    GitHub stars
+                  </div>
+                </div>
+                <div className="text-center mb-4">
+                  <div className="text-5xl md:text-3xl font-bold text-sky-800">
+                    {shortenNumber(stats.forks)}
+                  </div>
+                  <div className="ms-1 mt-1 font-medium tracking-wide">
+                    GitHub forks
+                  </div>
+                </div>
+              </>
+            )}
             <div className="text-center mb-4">
               <div className="text-5xl md:text-3xl font-bold text-sky-800">
                 {shortenNumber(languages.length)}
@@ -207,85 +212,89 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Contact us */}
-      <svg
-        viewBox="0 0 1440 54"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        width="100%"
-        className="bg-transparent -scale-100"
-      >
-        <path
-          d="M0 48 C0 48 320 0 720 0C1080 0 1440 48 1440 48V0H0V100Z"
-          fill="#f4f4f5"
-        />
-      </svg>
-      <div className="bg-zinc-100 py-8 px-32 md:px-8">
-        <div className="mt-4 mb-2 text-2xl font-bold text-center">
-          Reach out to us
-        </div>
-        <div className="text-lg text-center mb-4">
-          We love hearing from you. Join our community on Discord, GitHub, and
-          X.
-        </div>
-        <div className="px-36 text-center md:px-8">
-          <div className="md:block md:space-y-3 flex gap-3 justify-center">
-            <a
-              className="inline-block"
-              href={socials.github}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-14 py-4 rounded-lg">
-                <img src={github} className="h-8" />
-                <div className="text-lg text-white font-bold">
-                  See the source
-                </div>
+      {showCommunityLinks && (
+        <>
+          {/* Contact us */}
+          <svg
+            viewBox="0 0 1440 54"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            width="100%"
+            className="bg-transparent -scale-100"
+          >
+            <path
+              d="M0 48 C0 48 320 0 720 0C1080 0 1440 48 1440 48V0H0V100Z"
+              fill="#f4f4f5"
+            />
+          </svg>
+          <div className="bg-zinc-100 py-8 px-32 md:px-8">
+            <div className="mt-4 mb-2 text-2xl font-bold text-center">
+              Reach out to us
+            </div>
+            <div className="text-lg text-center mb-4">
+              We love hearing from you. Join our community on Discord, GitHub,
+              and X.
+            </div>
+            <div className="px-36 text-center md:px-8">
+              <div className="md:block md:space-y-3 flex gap-3 justify-center">
+                <a
+                  className="inline-block"
+                  href={socials.github}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <div className="bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-14 py-4 rounded-lg">
+                    <img src={github} className="h-8" />
+                    <div className="text-lg text-white font-bold">
+                      See the source
+                    </div>
+                  </div>
+                </a>
+                <a
+                  className="inline-block"
+                  href={socials.discord}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <div className="bg-[#5865f2] hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-8 py-4 rounded-lg">
+                    <img src={discord} className="h-8" />
+                    <div className="text-lg text-white font-bold">
+                      Join us on Discord
+                    </div>
+                  </div>
+                </a>
+                <a
+                  className="inline-block"
+                  href={socials.twitter}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <div className="text-white bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-12 py-4 rounded-lg">
+                    <i className="text-2xl bi bi-twitter-x" />
+                    <div className="text-lg  font-bold">Follow us on X</div>
+                  </div>
+                </a>
               </div>
-            </a>
-            <a
-              className="inline-block"
-              href={socials.discord}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="bg-[#5865f2] hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-8 py-4 rounded-lg">
-                <img src={discord} className="h-8" />
-                <div className="text-lg text-white font-bold">
-                  Join us on Discord
-                </div>
+              <div className="px-30 md:px-8 text-center mt-4">
+                <a
+                  className="w-full"
+                  href={socials.sponsor}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <div className="bg-white border-2 border-rose-400 hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-4 px-12 py-3 rounded-full">
+                    <div className="relative text-2xl mt-1">
+                      <i className="fa-solid fa-heart text-rose-300" />
+                      <i className="absolute top-0.5 left-0 fa-regular fa-heart text-rose-400" />
+                    </div>
+                    <div className="text-xl font-semibold">Support us</div>
+                  </div>
+                </a>
               </div>
-            </a>
-            <a
-              className="inline-block"
-              href={socials.twitter}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="text-white bg-zinc-800 hover:opacity-90 transition-all duration-300 flex items-center gap-4 px-12 py-4 rounded-lg">
-                <i className="text-2xl bi bi-twitter-x" />
-                <div className="text-lg  font-bold">Follow us on X</div>
-              </div>
-            </a>
+            </div>
           </div>
-          <div className="px-30 md:px-8 text-center mt-4">
-            <a
-              className="w-full"
-              href={socials.sponsor}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="bg-white border-2 border-rose-400 hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-4 px-12 py-3 rounded-full">
-                <div className="relative text-2xl mt-1">
-                  <i className="fa-solid fa-heart text-rose-300" />
-                  <i className="absolute top-0.5 left-0 fa-regular fa-heart text-rose-400" />
-                </div>
-                <div className="text-xl font-semibold">Support us</div>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       <div className="bg-red-700 py-1 text-center text-white text-xs font-semibold px-3">
         Attention! The diagrams are saved in your browser. Before clearing the

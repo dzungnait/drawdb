@@ -91,7 +91,7 @@ export default function ResizeHandles({
     const edgeX = side === "left" ? x : x + width;
     const barHeight = Math.max(0, height - handleInset * 2);
     return (
-      <g key={side}>
+      <g key={side} data-export-ignore>
         {(visible || engaged) && (
           <circle
             cx={edgeX}

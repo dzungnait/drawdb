@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Slot, useExtensions } from "../../context/ExtensionsContext";
 import { createPortal } from "react-dom";
@@ -27,7 +27,6 @@ import {
   Typography,
   Modal as SemiModal,
 } from "@douyinfe/semi-ui";
-import { toPng, toJpeg, toSvg } from "html-to-image";
 import {
   jsonToMySQL,
   jsonToPostgreSQL,
@@ -48,8 +47,9 @@ import {
   noteWidth,
   pngExportPixelRatio,
   keyboardPanStep,
+  darkBgTheme,
 } from "../../data/constants";
-import jsPDF from "jspdf";
+import { captureDiagram, saveDiagramAsPdf } from "../../utils/exportAs/image";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Validator } from "jsonschema";
 import {
@@ -75,6 +75,12 @@ import {
   useFullscreen,
   useNavigateWithParams,
 } from "../../hooks";
+import useBulkActions from "../../hooks/useBulkActions";
+import {
+  collectSelection,
+  isBulkClipboard,
+  serializeSelection,
+} from "../../utils/bulkClipboard";
 import { enterFullscreen, exitFullscreen } from "../../utils/fullscreen";
 import { dataURItoBlob } from "../../utils/utils";
 import {
@@ -112,6 +118,7 @@ import { DateTime } from "luxon";
 import ConfigureCustomTypes from "./ConfigureCustomTypes";
 import { useDiagramList } from "./Modal/Open/hooks/useDiagramList";
 import { mergeDiagrams, sortDiagrams } from "./Modal/Open/diagram";
+import { showCommunityLinks } from "../../config";
 
 const EDITOR_HOTKEY = {
   preventDefault: true,
@@ -156,6 +163,7 @@ export default function ControlPanel({
     addTable,
     updateTable,
     deleteField,
+    duplicateField,
     deleteTable,
     updateField,
     setRelationships,
@@ -170,7 +178,12 @@ export default function ControlPanel({
   const { notes, setNotes, updateNote, addNote, deleteNote } = useNotes();
   const { areas, setAreas, updateArea, addArea, deleteArea } = useAreas();
   const { undoStack, redoStack, setUndoStack, setRedoStack } = useUndoRedo();
-  const { selectedElement, setSelectedElement } = useSelect();
+  const { selectedElement, setSelectedElement, bulkSelectedElements } =
+    useSelect();
+  const bulkActions = useBulkActions();
+  // Pasting the same clipboard again keeps moving the copies further out
+  const pasteRepeatRef = useRef({ text: null, count: 0 });
+  const hasMultiSelection = bulkSelectedElements.length > 1;
   const { transform, setTransform } = useTransform();
   const { t, i18n } = useTranslation();
   const { version, gistId, setGistId } = useContext(IdContext);
@@ -197,6 +210,12 @@ export default function ControlPanel({
     if (undoStack.length === 0) return;
     const a = undoStack[undoStack.length - 1];
     setUndoStack((prev) => prev.filter((_, i) => i !== prev.length - 1));
+
+    if (a.selection) {
+      bulkActions.applyHistory(a, "undo");
+      setRedoStack((prev) => [...prev, a]);
+      return;
+    }
 
     if (a.bulk) {
       if (a.element === ObjectType.RELATIONSHIP && a.action === Action.ADD) {
@@ -298,7 +317,10 @@ export default function ControlPanel({
           const updatedFields = table.fields.slice();
           updatedFields.splice(a.data.index, 0, a.data.field);
           updateTable(a.tid, { fields: updatedFields });
-        } else if (a.component === "field_add") {
+        } else if (
+          a.component === "field_add" ||
+          a.component === "field_duplicate"
+        ) {
           updateTable(a.tid, {
             fields: table.fields.filter((e) => e.id !== a.fid),
           });
@@ -417,6 +439,12 @@ export default function ControlPanel({
     const a = redoStack[redoStack.length - 1];
     setRedoStack((prev) => prev.filter((e, i) => i !== prev.length - 1));
 
+    if (a.selection) {
+      bulkActions.applyHistory(a, "redo");
+      setUndoStack((prev) => [...prev, a]);
+      return;
+    }
+
     if (a.bulk) {
       if (a.element === ObjectType.RELATIONSHIP && a.action === Action.ADD) {
         setRelationships((prev) => [...prev, ...(a.relationships || [])]);
@@ -506,6 +534,8 @@ export default function ControlPanel({
           updateField(a.tid, a.fid, a.redo);
         } else if (a.component === "field_delete") {
           deleteField(a.data.field, a.tid, false);
+        } else if (a.component === "field_duplicate") {
+          duplicateField(a.tid, a.fid, false, a.data);
         } else if (a.component === "field_add") {
           updateTable(a.tid, {
             fields: [
@@ -661,20 +691,41 @@ export default function ControlPanel({
       showFieldSummary: !prev.showFieldSummary,
     }));
   };
+  const imageExportOptions = (type) => ({
+    backgroundColor: settings.mode === "dark" ? darkBgTheme : "white",
+    pixelRatio: type === "png" ? pngExportPixelRatio : 2,
+  });
+  const exportImage = (type) => {
+    openExportModal(MODAL.IMG);
+    captureDiagram(type, imageExportOptions(type))
+      .then(({ dataUrl }) =>
+        setExportData((prev) => ({ ...prev, data: dataUrl, extension: type })),
+      )
+      .catch(() => {
+        setModal(MODAL.NONE);
+        Toast.error(t("oops_smth_went_wrong"));
+      });
+  };
+  const exportPdf = () => {
+    saveDiagramAsPdf(
+      `${title}_${new Date().toISOString()}`,
+      imageExportOptions("jpeg"),
+    ).catch(() => Toast.error(t("oops_smth_went_wrong")));
+  };
   const copyAsImage = () => {
-    toPng(document.getElementById("canvas"), {
-      pixelRatio: pngExportPixelRatio,
-    }).then(function (dataUrl) {
-      const blob = dataURItoBlob(dataUrl);
-      navigator.clipboard
-        .write([new ClipboardItem({ "image/png": blob })])
-        .then(() => {
-          Toast.success(t("copied_to_clipboard"));
-        })
-        .catch(() => {
-          Toast.error(t("oops_smth_went_wrong"));
-        });
-    });
+    // Hand the clipboard a pending blob so the write keeps the user gesture
+    // while the (possibly slow) render runs
+    const blob = captureDiagram("png", imageExportOptions("png")).then(
+      ({ dataUrl }) => dataURItoBlob(dataUrl),
+    );
+    navigator.clipboard
+      .write([new ClipboardItem({ "image/png": blob })])
+      .then(() => {
+        Toast.success(t("copied_to_clipboard"));
+      })
+      .catch(() => {
+        Toast.error(t("oops_smth_went_wrong"));
+      });
   };
   const resetView = () =>
     setTransform((prev) => ({ ...prev, zoom: 1, pan: { x: 0, y: 0 } }));
@@ -881,6 +932,10 @@ export default function ControlPanel({
     if (layout.readOnly) {
       return;
     }
+    if (hasMultiSelection) {
+      bulkActions.deleteElements(bulkSelectedElements);
+      return;
+    }
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         deleteTable(selectedElement.id);
@@ -955,6 +1010,19 @@ export default function ControlPanel({
     }
   };
   const copy = () => {
+    if (hasMultiSelection) {
+      const selection = collectSelection(bulkSelectedElements, {
+        tables,
+        relationships,
+        notes,
+        areas,
+        views,
+      });
+      navigator.clipboard
+        .writeText(serializeSelection(selection))
+        .catch(() => Toast.error(t("oops_smth_went_wrong")));
+      return;
+    }
     switch (selectedElement.element) {
       case ObjectType.TABLE:
         navigator.clipboard
@@ -993,6 +1061,13 @@ export default function ControlPanel({
       try {
         obj = JSON.parse(text);
       } catch (error) {
+        return;
+      }
+      if (isBulkClipboard(obj)) {
+        const repeat = pasteRepeatRef.current;
+        repeat.count = repeat.text === text ? repeat.count + 1 : 1;
+        repeat.text = text;
+        bulkActions.pasteElements(obj, 20 * repeat.count);
         return;
       }
       const v = new Validator();
@@ -1047,6 +1122,12 @@ export default function ControlPanel({
   };
   const toggleDBMLEditor = () => {
     setLayout((prev) => ({ ...prev, dbmlEditor: !prev.dbmlEditor }));
+  };
+  // Read-only imposed by something other than view mode cannot be toggled off
+  const forcedReadOnly = layout.readOnly && !layout.viewMode;
+  const toggleViewMode = () => {
+    if (forcedReadOnly) return;
+    setLayout((prev) => ({ ...prev, viewMode: !prev.viewMode }));
   };
   const save = async () => {
     if (typeof extensions.cloudSave === "function") {
@@ -1507,49 +1588,15 @@ export default function ControlPanel({
         children: [
           {
             name: "PNG",
-            function: () => {
-              toPng(document.getElementById("canvas"), {
-                pixelRatio: pngExportPixelRatio,
-              }).then(function (dataUrl) {
-                setExportData((prev) => ({
-                  ...prev,
-                  data: dataUrl,
-                  extension: "png",
-                }));
-              });
-              openExportModal(MODAL.IMG);
-            },
+            function: () => exportImage("png"),
           },
           {
             name: "JPEG",
-            function: () => {
-              toJpeg(document.getElementById("canvas"), { quality: 0.95 }).then(
-                function (dataUrl) {
-                  setExportData((prev) => ({
-                    ...prev,
-                    data: dataUrl,
-                    extension: "jpeg",
-                  }));
-                },
-              );
-              openExportModal(MODAL.IMG);
-            },
+            function: () => exportImage("jpeg"),
           },
           {
             name: "SVG",
-            function: () => {
-              const filter = (node) => node.tagName !== "i";
-              toSvg(document.getElementById("canvas"), { filter: filter }).then(
-                function (dataUrl) {
-                  setExportData((prev) => ({
-                    ...prev,
-                    data: dataUrl,
-                    extension: "svg",
-                  }));
-                },
-              );
-              openExportModal(MODAL.IMG);
-            },
+            function: () => exportImage("svg"),
           },
           {
             name: "JSON",
@@ -1596,25 +1643,7 @@ export default function ControlPanel({
           },
           {
             name: "PDF",
-            function: () => {
-              const canvas = document.getElementById("canvas");
-              const filename = `${title}_${new Date().toISOString()}`;
-              toJpeg(canvas).then(function (dataUrl) {
-                const doc = new jsPDF("l", "px", [
-                  canvas.offsetWidth,
-                  canvas.offsetHeight,
-                ]);
-                doc.addImage(
-                  dataUrl,
-                  "jpeg",
-                  0,
-                  0,
-                  canvas.offsetWidth,
-                  canvas.offsetHeight,
-                );
-                doc.save(`${filename}.pdf`);
-              });
-            },
+            function: exportPdf,
           },
           {
             name: "Mermaid",
@@ -1774,6 +1803,16 @@ export default function ControlPanel({
         ),
         function: toggleDBMLEditor,
         shortcut: "Alt+E",
+      },
+      view_mode: {
+        state: layout.viewMode ? (
+          <i className="bi bi-toggle-on" />
+        ) : (
+          <i className="bi bi-toggle-off" />
+        ),
+        function: toggleViewMode,
+        disabled: forcedReadOnly,
+        shortcut: "Alt+R",
       },
       strict_mode: {
         state: settings.strictMode ? (
@@ -1971,12 +2010,14 @@ export default function ControlPanel({
       shortcuts: {
         function: () => window.open(`${socials.docs}/shortcuts`, "_blank"),
       },
-      ask_on_discord: {
-        function: () => window.open(socials.discord, "_blank"),
-      },
-      report_bug: {
-        function: () => window.open("/bug-report", "_blank"),
-      },
+      ...(showCommunityLinks && {
+        ask_on_discord: {
+          function: () => window.open(socials.discord, "_blank"),
+        },
+        report_bug: {
+          function: () => window.open("/bug-report", "_blank"),
+        },
+      }),
     },
   };
 
@@ -2002,6 +2043,7 @@ export default function ControlPanel({
   useHotkeys("mod+h", () => window.open(socials.docs, "_blank"), EDITOR_HOTKEY);
   useHotkeys("mod+alt+w", fitWindow, EDITOR_HOTKEY);
   useHotkeys("alt+e", toggleDBMLEditor, EDITOR_HOTKEY);
+  useHotkeys("alt+r", toggleViewMode, EDITOR_HOTKEY);
   useHotkeys("left", panLeft, EDITOR_HOTKEY);
   useHotkeys("right", panRight, EDITOR_HOTKEY);
   useHotkeys("up", panUp, EDITOR_HOTKEY);
@@ -2068,9 +2110,7 @@ export default function ControlPanel({
         cancelText={t("cancel")}
       >
         <div className="space-y-3">
-          <p className="text-sm">
-            {t("auto_connect_fk_modal_description")}
-          </p>
+          <p className="text-sm">{t("auto_connect_fk_modal_description")}</p>
           <ol className="list-decimal ps-5 space-y-1 text-sm">
             <li>{t("auto_connect_fk_rule_1")}</li>
             <li>{t("auto_connect_fk_rule_2")}</li>
@@ -2231,6 +2271,22 @@ export default function ControlPanel({
               <i className="fa-solid fa-wand-magic-sparkles" />
             </button>
           </Tooltip>
+          <Tooltip
+            content={layout.viewMode ? t("exit_view_mode") : t("view_mode")}
+            position="bottom"
+          >
+            <button
+              className={`py-1 px-2 hover-2 rounded-sm text-xl -mt-0.5 disabled:opacity-50${
+                layout.viewMode ? " text-blue-500" : ""
+              }`}
+              onClick={toggleViewMode}
+              disabled={forcedReadOnly}
+            >
+              <i
+                className={`fa-solid ${layout.viewMode ? "fa-eye" : "fa-pen"}`}
+              />
+            </button>
+          </Tooltip>
           <Divider layout="vertical" margin="8px" />
           <Tooltip content={t("save")} position="bottom">
             <button
@@ -2317,8 +2373,12 @@ export default function ControlPanel({
                     filter:
                       "opacity(0.4) drop-shadow(0 0 0 white) drop-shadow(0 0 0 white)",
                   }}
-                  alt={t("database_icon", { databaseName: databases[database].name })}
-                  title={t("database_diagram", { databaseName: databases[database].name })}
+                  alt={t("database_icon", {
+                    databaseName: databases[database].name,
+                  })}
+                  title={t("database_diagram", {
+                    databaseName: databases[database].name,
+                  })}
                 />
               )}
               <Slot name="diagram-title-prefix" />

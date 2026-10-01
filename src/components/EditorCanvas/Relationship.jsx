@@ -1,7 +1,14 @@
-import { useMemo, useRef, useState, useEffect } from "react";
-import { Cardinality, ObjectType, Tab } from "../../data/constants";
+import {
+  memo,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+} from "react";
+import { Cardinality } from "../../data/constants";
 import { calcPath, calcCompositePath } from "../../utils/calcPath";
-import { useDiagram, useSettings, useLayout, useSelect } from "../../hooks";
+import { useSettings } from "../../hooks";
 import { useTranslation } from "react-i18next";
 import { SideSheet } from "@douyinfe/semi-ui";
 import RelationshipInfo from "../EditorSidePanel/RelationshipsTab/RelationshipInfo";
@@ -14,17 +21,22 @@ import {
 
 const labelFontSize = 16;
 
-export default function Relationship({ data }) {
+// Everything that changes often comes in as props (rather than from the
+// diagram/selection contexts) so that, memoized, a relationship re-renders
+// only when one of its own tables changes.
+function Relationship({
+  data,
+  startTable,
+  endTable,
+  relationships,
+  sheetOpen,
+  onEdit,
+  onCloseSheet,
+}) {
   const { settings } = useSettings();
-  const { tables, relationships } = useDiagram();
-  const { layout } = useLayout();
-  const { selectedElement, setSelectedElement } = useSelect();
   const { t } = useTranslation();
 
   const pathValues = useMemo(() => {
-    const startTable = tables.find((t) => t.id === data.startTableId);
-    const endTable = tables.find((t) => t.id === data.endTableId);
-
     if (!startTable || !endTable || startTable.hidden || endTable.hidden)
       return null;
 
@@ -65,7 +77,7 @@ export default function Relationship({ data }) {
         fields: endFields,
       },
     };
-  }, [tables, relationships, data]);
+  }, [startTable, endTable, relationships, data]);
 
   const isComposite = (pathValues?.startFieldIndices?.length ?? 0) > 1;
 
@@ -111,64 +123,51 @@ export default function Relationship({ data }) {
       break;
   }
 
-  let cardinalityStartX = 0;
-  let cardinalityEndX = 0;
-  let cardinalityStartY = 0;
-  let cardinalityEndY = 0;
-  let labelX = 0;
-  let labelY = 0;
-
-  let labelWidth = labelRef.current?.getBBox().width ?? 0;
-  let labelHeight = labelRef.current?.getBBox().height ?? 0;
-
   const cardinalityOffset = 28;
 
-  if (composite) {
-    labelX = composite.labelPoint.x - (labelWidth ?? 0) / 2;
-    labelY = composite.labelPoint.y + (labelHeight ?? 0) / 2;
-    cardinalityStartX = composite.startCardinality.x;
-    cardinalityStartY = composite.startCardinality.y;
-    cardinalityEndX = composite.endCardinality.x;
-    cardinalityEndY = composite.endCardinality.y;
-  } else if (pathRef.current) {
-    const pathLength = pathRef.current.getTotalLength();
+  const path = !pathValues
+    ? null
+    : composite
+      ? composite.path
+      : calcPath(pathValues, 1, settings.showComments);
 
-    const labelPoint = pathRef.current.getPointAtLength(pathLength / 2);
-    labelX = labelPoint.x - (labelWidth ?? 0) / 2;
-    labelY = labelPoint.y + (labelHeight ?? 0) / 2;
-
-    const point1 = pathRef.current.getPointAtLength(cardinalityOffset);
-    cardinalityStartX = point1.x;
-    cardinalityStartY = point1.y;
-    const point2 = pathRef.current.getPointAtLength(
-      pathLength - cardinalityOffset,
-    );
-    cardinalityEndX = point2.x;
-    cardinalityEndY = point2.y;
-  }
-
-  const edit = () => {
-    if (!layout.sidebar) {
-      setSelectedElement((prev) => ({
-        ...prev,
-        element: ObjectType.RELATIONSHIP,
-        id: data.id,
-        open: true,
-      }));
+  // Label and cardinality positions come from the rendered path, so they are
+  // measured after it is committed and before the browser paints.
+  const [points, setPoints] = useState(null);
+  useLayoutEffect(() => {
+    if (!path) return;
+    let mid;
+    let start;
+    let end;
+    if (composite) {
+      mid = composite.labelPoint;
+      start = composite.startCardinality;
+      end = composite.endCardinality;
+    } else if (pathRef.current) {
+      const length = pathRef.current.getTotalLength();
+      mid = pathRef.current.getPointAtLength(length / 2);
+      start = pathRef.current.getPointAtLength(cardinalityOffset);
+      end = pathRef.current.getPointAtLength(length - cardinalityOffset);
     } else {
-      setSelectedElement((prev) => ({
-        ...prev,
-        currentTab: Tab.RELATIONSHIPS,
-        element: ObjectType.RELATIONSHIP,
-        id: data.id,
-        open: true,
-      }));
-      if (selectedElement.currentTab !== Tab.RELATIONSHIPS) return;
-      document
-        .getElementById(`scroll_ref_${data.id}`)
-        .scrollIntoView({ behavior: "smooth" });
+      return;
     }
-  };
+    const label = labelRef.current?.getBBox();
+    const next = {
+      labelX: mid.x - (label?.width ?? 0) / 2,
+      labelY: mid.y + (label?.height ?? 0) / 2,
+      startX: start.x,
+      startY: start.y,
+      endX: end.x,
+      endY: end.y,
+    };
+    setPoints((prev) =>
+      prev && Object.keys(next).every((k) => prev[k] === next[k])
+        ? prev
+        : next,
+    );
+  }, [path, composite, data.name, settings.showRelationshipLabels]);
+
+  const edit = () => onEdit(data.id);
 
   if (!pathValues) return null;
 
@@ -182,11 +181,7 @@ export default function Relationship({ data }) {
       >
         {/* invisible wider path for better hover ux */}
         <path
-          d={
-            composite
-              ? composite.path
-              : calcPath(pathValues, 1, settings.showComments)
-          }
+          d={path}
           fill="none"
           stroke="transparent"
           strokeWidth={12}
@@ -194,11 +189,7 @@ export default function Relationship({ data }) {
         />
         <path
           ref={pathRef}
-          d={
-            composite
-              ? composite.path
-              : calcPath(pathValues, 1, settings.showComments)
-          }
+          d={path}
           className="relationship-path"
           style={{ stroke: hovered ? undefined : data.color }}
           fill="none"
@@ -206,8 +197,8 @@ export default function Relationship({ data }) {
         />
         {settings.showRelationshipLabels && (
           <text
-            x={labelX}
-            y={labelY}
+            x={points?.labelX ?? 0}
+            y={points?.labelY ?? 0}
             fill={data.color ?? (settings.mode === "dark" ? "lightgrey" : "#333")}
             fontSize={labelFontSize}
             fontWeight={500}
@@ -217,17 +208,17 @@ export default function Relationship({ data }) {
             {data.name}
           </text>
         )}
-        {(composite || pathRef.current) && settings.showCardinality && (
+        {points && settings.showCardinality && (
           <>
             <CardinalityLabel
-              x={cardinalityStartX}
-              y={cardinalityStartY}
+              x={points.startX}
+              y={points.startY}
               text={cardinalityStart}
               color={data.color}
             />
             <CardinalityLabel
-              x={cardinalityEndX}
-              y={cardinalityEndY}
+              x={points.endX}
+              y={points.endY}
               text={cardinalityEnd}
               color={data.color}
             />
@@ -237,18 +228,8 @@ export default function Relationship({ data }) {
       <SideSheet
         title={t("edit")}
         size="small"
-        visible={
-          selectedElement.element === ObjectType.RELATIONSHIP &&
-          selectedElement.id === data.id &&
-          selectedElement.open &&
-          !layout.sidebar
-        }
-        onCancel={() => {
-          setSelectedElement((prev) => ({
-            ...prev,
-            open: false,
-          }));
-        }}
+        visible={sheetOpen}
+        onCancel={onCloseSheet}
         style={{ paddingBottom: "16px" }}
       >
         <div className="sidesheet-theme">
@@ -258,6 +239,8 @@ export default function Relationship({ data }) {
     </>
   );
 }
+
+export default memo(Relationship);
 
 function CardinalityLabel({ x, y, text, color, r = 12, padding = 14 }) {
   const [textWidth, setTextWidth] = useState(0);

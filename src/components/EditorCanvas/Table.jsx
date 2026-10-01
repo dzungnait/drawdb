@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   Action,
   Tab,
@@ -51,36 +51,33 @@ import {
 } from "../../utils/utils";
 import ResizeHandles from "./ResizeHandles";
 
-export default function Table({
+// The heavy part of a table. It takes everything that changes while any
+// table is dragged (diagram and selection state) as plain props, so when
+// memoized only the tables that actually changed re-render.
+// Diagram/selection actions are read from `actions` at call time: they close
+// over the latest diagram, which this component may not have rendered with.
+const TableView = memo(function TableView({
   tableData,
   onPointerDown,
   setHoveredTable,
   handleGripField,
   setLinkingLine,
+  isSelected,
+  sheetOpen,
+  database,
+  relationships,
+  fieldReferences,
+  actions,
 }) {
   const [hoveredField, setHoveredField] = useState(null);
   const [hovered, setHovered] = useState(false);
   const [resizeEngaged, setResizeEngaged] = useState(false);
   const { layout } = useLayout();
-  const {
-    database,
-    tables,
-    relationships,
-    addTable,
-    deleteTable,
-    deleteField,
-    updateTable,
-  } = useDiagram();
   const { setUndoStack, setRedoStack } = useUndoRedo();
   const { settings } = useSettings();
   const { transform } = useTransform();
   const { t } = useTranslation();
-  const {
-    selectedElement,
-    setSelectedElement,
-    bulkSelectedElements,
-    setBulkSelectedElements,
-  } = useSelect();
+  const { setSelectedElement, setBulkSelectedElements } = actions.current;
 
   const borderColor = useMemo(
     () => (settings.mode === "light" ? "border-zinc-300" : "border-zinc-600"),
@@ -105,15 +102,6 @@ export default function Table({
     [tableData, relationships],
   );
 
-  const isSelected = useMemo(() => {
-    return (
-      (selectedElement.id == tableData.id &&
-        selectedElement.element === ObjectType.TABLE) ||
-      bulkSelectedElements.some(
-        (e) => e.type === ObjectType.TABLE && e.id === tableData.id,
-      )
-    );
-  }, [selectedElement, tableData, bulkSelectedElements]);
 
   const toggleTableCollapse = (e) => {
     e.stopPropagation();
@@ -136,20 +124,20 @@ export default function Table({
       },
     ]);
     setRedoStack([]);
-    updateTable(tableData.id, { collapsed });
+    actions.current.updateTable(tableData.id, { collapsed });
   };
 
   const lockUnlockTable = (e) => {
     const locking = !tableData.locked;
-    updateTable(tableData.id, { locked: locking });
+    actions.current.updateTable(tableData.id, { locked: locking });
 
     const lockTable = () => {
-      setSelectedElement({
-        ...selectedElement,
+      setSelectedElement((prev) => ({
+        ...prev,
         element: ObjectType.NONE,
         id: -1,
         open: false,
-      });
+      }));
       setBulkSelectedElements((prev) =>
         prev.filter(
           (el) => el.id !== tableData.id || el.type !== ObjectType.TABLE,
@@ -195,10 +183,11 @@ export default function Table({
       fields: tableData.fields.map((f) => ({ ...f, id: nanoid() })),
       indices: tableData.indices.map((idx) => ({ ...idx, id: nanoid() })),
     };
-    addTable({ table: duplicated });
+    actions.current.addTable({ table: duplicated });
   };
 
   const openEditor = () => {
+    const previousTab = actions.current.selectedElement.currentTab;
     if (!layout.sidebar) {
       setSelectedElement((prev) => ({
         ...prev,
@@ -214,35 +203,15 @@ export default function Table({
         id: tableData.id,
         open: true,
       }));
-      if (selectedElement.currentTab !== Tab.TABLES) return;
+      if (previousTab !== Tab.TABLES) return;
       document
         .getElementById(`scroll_table_${tableData.id}`)
         .scrollIntoView({ behavior: "smooth" });
     }
   };
 
-  const getFieldReference = (fieldData) => {
-    let matchedEndFieldId = null;
-    const rel = relationships.find((r) => {
-      if (r.startTableId !== tableData.id) return false;
-      const pair = getRelationshipFields(r).find(
-        (p) => p.startFieldId === fieldData.id,
-      );
-      if (!pair) return false;
-      matchedEndFieldId = pair.endFieldId;
-      return true;
-    });
-    if (!rel) return null;
-
-    const refTable = tables.find((tbl) => tbl.id === rel.endTableId);
-    const refField = refTable?.fields.find((f) => f.id === matchedEndFieldId);
-    if (!refTable || !refField) return null;
-
-    return { tableName: refTable.name, fieldName: refField.name };
-  };
-
   const resizeTable = ({ width: nextWidth, x: nextX }) => {
-    updateTable(
+    actions.current.updateTable(
       tableData.id,
       nextX === undefined
         ? { width: nextWidth }
@@ -292,7 +261,7 @@ export default function Table({
         width={width}
         height={height}
         className="group drop-shadow-lg rounded-md cursor-move"
-        onPointerDown={onPointerDown}
+        onPointerDown={() => onPointerDown(tableData)}
         onPointerEnter={(e) => e.isPrimary && setHovered(true)}
         onPointerLeave={(e) => e.isPrimary && setHovered(false)}
       >
@@ -407,7 +376,7 @@ export default function Table({
                           theme="borderless"
                           block
                           style={{ justifyContent: "flex-start" }}
-                          onClick={() => deleteTable(tableData.id)}
+                          onClick={() => actions.current.deleteTable(tableData.id)}
                           disabled={layout.readOnly}
                         >
                           {t("delete")}
@@ -438,7 +407,7 @@ export default function Table({
 
           {visibleFieldEntries.map(({ field: e }, i) => {
             const resolved = resolveType(database, e.type);
-            const reference = getFieldReference(e);
+            const reference = fieldReferences[e.id] ?? null;
             return settings.showFieldSummary ? (
               <Popover
                 key={e.id ?? i}
@@ -540,12 +509,7 @@ export default function Table({
       <SideSheet
         title={t("edit")}
         size="small"
-        visible={
-          selectedElement.element === ObjectType.TABLE &&
-          selectedElement.id === tableData.id &&
-          selectedElement.open &&
-          !layout.sidebar
-        }
+        visible={sheetOpen}
         onCancel={() =>
           setSelectedElement((prev) => ({
             ...prev,
@@ -648,7 +612,7 @@ export default function Table({
                 disabled={layout.readOnly}
                 onClick={() => {
                   if (layout.readOnly) return;
-                  deleteField(fieldData, tableData.id);
+                  actions.current.deleteField(fieldData, tableData.id);
                 }}
               />
             ) : settings.showDataTypes ? (
@@ -687,4 +651,86 @@ export default function Table({
       </div>
     );
   }
+});
+
+/** Reference target per field id, e.g. { f1: { tableName, fieldName } } */
+function getFieldReferences(tableData, tables, relationships) {
+  const refs = {};
+  for (const r of relationships) {
+    if (r.startTableId !== tableData.id) continue;
+    const refTable = tables.find((tbl) => tbl.id === r.endTableId);
+    if (!refTable) continue;
+    for (const pair of getRelationshipFields(r)) {
+      if (refs[pair.startFieldId]) continue;
+      const refField = refTable.fields.find((f) => f.id === pair.endFieldId);
+      if (refField) {
+        refs[pair.startFieldId] = {
+          tableName: refTable.name,
+          fieldName: refField.name,
+        };
+      }
+    }
+  }
+  return refs;
 }
+
+// Cheap wrapper: re-renders with the diagram/selection contexts (every frame
+// of a drag) but hands TableView props that stay equal unless this table, its
+// selection state or what its fields reference actually changed.
+function Table(props) {
+  const { tableData } = props;
+  const diagram = useDiagram();
+  const select = useSelect();
+  const { layout } = useLayout();
+  const { selectedElement, bulkSelectedElements } = select;
+
+  const actions = useRef(null);
+  actions.current = {
+    addTable: diagram.addTable,
+    deleteTable: diagram.deleteTable,
+    deleteField: diagram.deleteField,
+    updateTable: diagram.updateTable,
+    selectedElement,
+    setSelectedElement: select.setSelectedElement,
+    setBulkSelectedElements: select.setBulkSelectedElements,
+  };
+
+  const isSelected =
+    (selectedElement.id == tableData.id &&
+      selectedElement.element === ObjectType.TABLE) ||
+    bulkSelectedElements.some(
+      (e) => e.type === ObjectType.TABLE && e.id === tableData.id,
+    );
+  const sheetOpen =
+    selectedElement.element === ObjectType.TABLE &&
+    selectedElement.id === tableData.id &&
+    selectedElement.open &&
+    !layout.sidebar;
+
+  // Recomputed when any table moves; only replaced when its content changes
+  const references = getFieldReferences(
+    tableData,
+    diagram.tables,
+    diagram.relationships,
+  );
+  const referencesRef = useRef({ key: null, value: null });
+  const referencesKey = JSON.stringify(references);
+  if (referencesRef.current.key !== referencesKey) {
+    referencesRef.current = { key: referencesKey, value: references };
+  }
+
+  return (
+    <TableView
+      {...props}
+      isSelected={isSelected}
+      sheetOpen={sheetOpen}
+      database={diagram.database}
+      relationships={diagram.relationships}
+      fieldReferences={referencesRef.current.value}
+      actions={actions}
+    />
+  );
+}
+
+// Memoized: the canvas re-renders on every pointer move
+export default memo(Table);

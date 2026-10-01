@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   Button,
   ButtonGroup,
@@ -25,7 +25,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { useHover } from "usehooks-ts";
 
-export default function Area({
+// Memoized: the canvas re-renders on every pointer move
+function Area({
   data,
   onPointerDown,
   setResize,
@@ -159,7 +160,7 @@ export default function Area({
         y={data.y}
         width={data.width > 0 ? data.width : 0}
         height={data.height > 0 ? data.height : 0}
-        onPointerDown={onPointerDown}
+        onPointerDown={() => onPointerDown(data)}
       >
         <div
           className={`w-full h-full p-2 rounded cursor-move border-2 ${
@@ -359,3 +360,5 @@ function EditPopoverContent({ data }) {
     </div>
   );
 }
+
+export default memo(Area);

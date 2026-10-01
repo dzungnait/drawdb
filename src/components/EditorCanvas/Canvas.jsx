@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Slot } from "../../context/ExtensionsContext";
 import {
   Action,
@@ -10,6 +10,7 @@ import {
   gridCircleRadius,
   minAreaSize,
   defaultRelationshipColor,
+  Tab,
 } from "../../data/constants";
 import { Toast } from "@douyinfe/semi-ui";
 import Table from "./Table";
@@ -47,6 +48,12 @@ import { getRectFromEndpoints, isInsideRect } from "../../utils/rect";
 import { State, noteWidth } from "../../data/constants";
 import { nanoid } from "nanoid";
 
+const notDragging = {
+  id: -1,
+  type: ObjectType.NONE,
+  grabOffset: { x: 0, y: 0 },
+};
+
 export default function Canvas() {
   const { t } = useTranslation();
 
@@ -73,11 +80,6 @@ export default function Canvas() {
     bulkSelectedElements,
     setBulkSelectedElements,
   } = useSelect();
-  const notDragging = {
-    id: -1,
-    type: ObjectType.NONE,
-    grabOffset: { x: 0, y: 0 },
-  };
   const [dragging, setDragging] = useState(notDragging);
   const [linking, setLinking] = useState(false);
   const [linkingLine, setLinkingLine] = useState({
@@ -143,8 +145,21 @@ export default function Canvas() {
     metaKey: false,
   });
   // this is used to store the element that is clicked on
-  // at the moment, and shouldn't be a part of the state
-  let elementPointerDown = null;
+  // at the moment, and shouldn't be a part of the state.
+  // A ref, so memoized children holding an older callback still reach it.
+  const elementPointerDownRef = useRef(null);
+  const onTablePointerDown = useCallback((element) => {
+    elementPointerDownRef.current = { element, type: ObjectType.TABLE };
+  }, []);
+  const onAreaPointerDown = useCallback((element) => {
+    elementPointerDownRef.current = { element, type: ObjectType.AREA };
+  }, []);
+  const onNotePointerDown = useCallback((element) => {
+    elementPointerDownRef.current = { element, type: ObjectType.NOTE };
+  }, []);
+  const onViewPointerDown = useCallback((element) => {
+    elementPointerDownRef.current = { element, type: ObjectType.VIEW };
+  }, []);
 
   const isSameElement = (el1, el2) => {
     return el1.id === el2.id && el1.type === el2.type;
@@ -479,6 +494,10 @@ export default function Canvas() {
    * @param {PointerEvent} e
    */
   const handlePointerDown = (e) => {
+    // Set by the element's own handler, which runs first; consume it once
+    const elementPointerDown = elementPointerDownRef.current;
+    elementPointerDownRef.current = null;
+
     if (!e.isPrimary) return;
 
     // don't pan if the sidesheet for editing a table is open
@@ -636,11 +655,48 @@ export default function Canvas() {
     });
   };
 
-  const handleGripField = () => {
+  const handleGripField = useCallback(() => {
     setPanning((old) => ({ ...old, isPanning: false }));
     setDragging(notDragging);
     setLinking(true);
-  };
+  }, []);
+
+  const tableMap = useMemo(
+    () => new Map(tables.map((table) => [table.id, table])),
+    [tables],
+  );
+  // Read at call time so the relationship callbacks below can stay stable
+  const selectedElementRef = useRef(selectedElement);
+  selectedElementRef.current = selectedElement;
+  const editRelationship = useCallback(
+    (id) => {
+      if (!layout.sidebar) {
+        setSelectedElement((prev) => ({
+          ...prev,
+          element: ObjectType.RELATIONSHIP,
+          id,
+          open: true,
+        }));
+        return;
+      }
+      const previousTab = selectedElementRef.current.currentTab;
+      setSelectedElement((prev) => ({
+        ...prev,
+        currentTab: Tab.RELATIONSHIPS,
+        element: ObjectType.RELATIONSHIP,
+        id,
+        open: true,
+      }));
+      if (previousTab !== Tab.RELATIONSHIPS) return;
+      document
+        .getElementById(`scroll_ref_${id}`)
+        ?.scrollIntoView({ behavior: "smooth" });
+    },
+    [layout.sidebar, setSelectedElement],
+  );
+  const closeRelationshipSheet = useCallback(() => {
+    setSelectedElement((prev) => ({ ...prev, open: false }));
+  }, [setSelectedElement]);
 
   const getCardinality = (startField, endField) => {
     const startIsUnique = startField.unique || startField.primary;
@@ -816,16 +872,25 @@ export default function Canvas() {
               data={a}
               setResize={setAreaResize}
               setInitDimensions={setAreaInitDimensions}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: a,
-                  type: ObjectType.AREA,
-                };
-              }}
+              onPointerDown={onAreaPointerDown}
             />
           ))}
           {relationships.map((e) => (
-            <Relationship key={e.id} data={e} />
+            <Relationship
+              key={e.id}
+              data={e}
+              startTable={tableMap.get(e.startTableId)}
+              endTable={tableMap.get(e.endTableId)}
+              relationships={relationships}
+              sheetOpen={
+                selectedElement.element === ObjectType.RELATIONSHIP &&
+                selectedElement.id === e.id &&
+                selectedElement.open &&
+                !layout.sidebar
+              }
+              onEdit={editRelationship}
+              onCloseSheet={closeRelationshipSheet}
+            />
           ))}
           {tables.map((table) => (
             <Table
@@ -834,24 +899,14 @@ export default function Canvas() {
               setHoveredTable={setHoveredTable}
               handleGripField={handleGripField}
               setLinkingLine={setLinkingLine}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: table,
-                  type: ObjectType.TABLE,
-                };
-              }}
+              onPointerDown={onTablePointerDown}
             />
           ))}
           {views.map((view) => (
             <View
               key={view.id}
               viewData={view}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: view,
-                  type: ObjectType.VIEW,
-                };
-              }}
+              onPointerDown={onViewPointerDown}
             />
           ))}
           {linking && (
@@ -860,6 +915,7 @@ export default function Canvas() {
               stroke="red"
               strokeDasharray="8,8"
               className="pointer-events-none touch-none"
+              data-export-ignore
             />
           )}
           <Slot name="svg-overlay" />
@@ -867,12 +923,7 @@ export default function Canvas() {
             <Note
               key={n.id}
               data={n}
-              onPointerDown={() => {
-                elementPointerDown = {
-                  element: n,
-                  type: ObjectType.NOTE,
-                };
-              }}
+              onPointerDown={onNotePointerDown}
             />
           ))}
           {bulkSelectRect.show && (
@@ -882,6 +933,7 @@ export default function Canvas() {
               fill="grey"
               fillOpacity={0.15}
               strokeDasharray={10}
+              data-export-ignore
             />
           )}
         </svg>
