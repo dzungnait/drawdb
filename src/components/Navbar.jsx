@@ -5,6 +5,7 @@ import { SideSheet } from "@douyinfe/semi-ui";
 import { IconMenu } from "@douyinfe/semi-icons";
 import { socials } from "../data/socials";
 import { showCommunityLinks } from "../config";
+import AccountMenu from "../cloud/components/AccountMenu";
 
 export default function Navbar() {
   const [openMenu, setOpenMenu] = useState(false);
@@ -87,6 +88,9 @@ export default function Navbar() {
               </a>
             </div>
           )}
+          <div className="ms-6 md:hidden">
+            <AccountMenu variant="landing" />
+          </div>
         </div>
         <button
           onClick={() => setOpenMenu((prev) => !prev)}

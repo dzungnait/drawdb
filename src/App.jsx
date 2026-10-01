@@ -7,6 +7,8 @@ import LandingPage from "./pages/LandingPage";
 import SettingsContextProvider from "./context/SettingsContext";
 import NotFound from "./pages/NotFound";
 import MigrationBanner, { isLegacyHost } from "./components/MigrationBanner";
+import CloudProvider from "./cloud/CloudProvider";
+import { ResetPasswordPage, VerifyEmailPage } from "./cloud/pages/AuthPages";
 
 export default function App() {
   const routes = (
@@ -17,6 +19,8 @@ export default function App() {
       <Route path="/editor/templates/:id" element={<Editor />} />
       <Route path="/bug-report" element={<BugReport />} />
       <Route path="/templates" element={<Templates />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -24,15 +28,17 @@ export default function App() {
   return (
     <BrowserRouter>
       <SettingsContextProvider>
-        <RestoreScroll />
-        {isLegacyHost() ? (
-          <div className="h-full flex flex-col">
-            <MigrationBanner />
-            <div className="flex-1 min-h-0">{routes}</div>
-          </div>
-        ) : (
-          routes
-        )}
+        <CloudProvider>
+          <RestoreScroll />
+          {isLegacyHost() ? (
+            <div className="h-full flex flex-col">
+              <MigrationBanner />
+              <div className="flex-1 min-h-0">{routes}</div>
+            </div>
+          ) : (
+            routes
+          )}
+        </CloudProvider>
       </SettingsContextProvider>
     </BrowserRouter>
   );
