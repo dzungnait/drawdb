@@ -4,6 +4,7 @@ import { db } from "../data/db";
 import i18n from "../i18n/i18n";
 import { api, errorCode } from "./api";
 import { errorMessage } from "./i18n";
+import { isPreviewing, previewStore } from "./preview";
 
 export const diagramsApi = {
   list: () => api.get("/diagrams").then((r) => r.data.diagrams),
@@ -192,6 +193,34 @@ const queueFor = (id) => {
   return queues.get(id);
 };
 
+/** Whether the diagram was loaded from (or saved to) the server. */
+export const isCloudDiagram = (id) => versions.has(id);
+
+/**
+ * Sends the diagram's pending changes now and waits until they're stored.
+ * Throws if they can't be, e.g. on a conflict.
+ */
+export async function flushSaves(id) {
+  const queue = queues.get(id);
+  for (let i = 0; queue?.busy && i < 20; i++) {
+    if (queue.timer) {
+      clearTimeout(queue.timer);
+      queue.flush();
+    }
+    await queue.inflight?.catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve));
+  }
+  if (conflicts.has(id)) throw conflicts.get(id).error;
+  if (queue?.busy) throw new Error("save_pending");
+}
+
+/** The server replaced the diagram (e.g. restored a version): start from it. */
+export function adoptDiagram(diagram) {
+  versions.set(diagram.diagramId, diagram.version);
+  savedKeys.set(diagram.diagramId, contentKey(diagram));
+  conflicts.delete(diagram.diagramId);
+}
+
 /** Unsaved changes in any open diagram (for the before-unload prompt). */
 export const hasUnsavedChanges = () =>
   conflicts.size > 0 || [...queues.values()].some((q) => q.busy);
@@ -203,6 +232,8 @@ const isLocal = async (id) =>
 export const cloudHooks = {
   async cloudSave(payload, { isNew } = {}) {
     const id = payload.diagramId;
+    // An old version is on screen, not the diagram
+    if (isPreviewing(id)) return;
     // Diagrams stored in this browser keep being saved here (e.g. Ctrl+S)
     if (!isNew && !versions.has(id) && (await isLocal(id))) {
       await db.diagrams
@@ -288,4 +319,5 @@ export function resetCloudState() {
   savedKeys.clear();
   conflicts.clear();
   queues.clear();
+  previewStore.set(null);
 }

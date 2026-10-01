@@ -6,6 +6,8 @@ import AccountMenu from "./components/AccountMenu";
 import AccountSettings from "./components/AccountSettings";
 import ConflictDialog from "./components/ConflictDialog";
 import TrashDialog from "./components/TrashDialog";
+import VersionHistory from "./components/VersionHistory";
+import VersionPreviewBanner from "./components/VersionPreviewBanner";
 import { cloudHooks, hasUnsavedChanges, resetCloudState } from "./diagrams";
 import "./i18n";
 
@@ -47,7 +49,13 @@ function Extensions({ children }) {
       ...(userId && {
         ...cloudHooks,
         cloudCurrentUserId: userId,
-        "canvas-overlay": <ConflictDialog />,
+        "canvas-overlay": (
+          <>
+            <ConflictDialog />
+            <VersionPreviewBanner />
+          </>
+        ),
+        "versions-panel": <VersionHistory />,
       }),
     }),
     [userId],

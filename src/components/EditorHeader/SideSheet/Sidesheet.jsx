@@ -1,3 +1,4 @@
+import { cloneElement, isValidElement } from "react";
 import { SideSheet as SemiUISideSheet } from "@douyinfe/semi-ui";
 import { SIDESHEET } from "../../../data/constants";
 import { useExtensions } from "../../../context/ExtensionsContext";
@@ -24,16 +25,15 @@ export default function Sidesheet({ type, title, setTitle, onClose }) {
     switch (type) {
       case SIDESHEET.TIMELINE:
         return <Timeline />;
-      case SIDESHEET.VERSIONS:
-        return (
-          extensions["versions-panel"] ?? (
-            <Versions
-              open={type !== SIDESHEET.NONE}
-              title={title}
-              setTitle={setTitle}
-            />
-          )
+      case SIDESHEET.VERSIONS: {
+        const props = { open: type !== SIDESHEET.NONE, title, setTitle };
+        const panel = extensions["versions-panel"];
+        return isValidElement(panel) ? (
+          cloneElement(panel, props)
+        ) : (
+          <Versions {...props} />
         );
+      }
       default:
         break;
     }
@@ -43,6 +43,8 @@ export default function Sidesheet({ type, title, setTitle, onClose }) {
     <SemiUISideSheet
       visible={type !== SIDESHEET.NONE}
       onCancel={onClose}
+      // Versions are previewed on the canvas, so keep it visible
+      mask={type !== SIDESHEET.VERSIONS}
       width={420}
       title={<div className="text-lg">{getTitle(type)}</div>}
       style={{ paddingBottom: "16px" }}

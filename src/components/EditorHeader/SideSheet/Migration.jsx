@@ -17,6 +17,9 @@ export default function Migration({
   selectedVersion,
   versionToCompareTo,
   setSelectedVersion,
+  // Optional: async () => ({ contentA, contentB }), the newer and older
+  // diagram as JSON, for versions that aren't stored in a gist
+  loadContents,
 }) {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -35,12 +38,16 @@ export default function Migration({
     try {
       setLoading(true);
       const diff = {};
-      const { data } = await compare(
-        gistId,
-        VERSION_FILENAME,
-        selectedVersion,
-        versionToCompareTo,
-      );
+      const data = loadContents
+        ? await loadContents()
+        : (
+            await compare(
+              gistId,
+              VERSION_FILENAME,
+              selectedVersion,
+              versionToCompareTo,
+            )
+          ).data;
       setContentA(JSON.stringify(JSON.parse(data.contentA), null, 2));
       setContentB(
         data.contentB ? JSON.stringify(JSON.parse(data.contentB), null, 2) : "",
@@ -77,7 +84,7 @@ export default function Migration({
     } finally {
       setLoading(false);
     }
-  }, [gistId, selectedVersion, versionToCompareTo]);
+  }, [gistId, selectedVersion, versionToCompareTo, loadContents]);
 
   const handleConfirm = () => {
     if (!migrationSQL?.up) return;
@@ -96,13 +103,17 @@ export default function Migration({
   };
 
   useEffect(() => {
+    if (loadContents) {
+      if (selectedVersion) getDiff();
+      return;
+    }
     if (versionToCompareTo === "") {
       setLoading(true);
       return;
     }
     if (!gistId || !selectedVersion) return;
     getDiff();
-  }, [getDiff, gistId, selectedVersion, versionToCompareTo]);
+  }, [getDiff, gistId, selectedVersion, versionToCompareTo, loadContents]);
 
   if (!selectedVersion) return null;
 
