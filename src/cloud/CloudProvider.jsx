@@ -5,6 +5,11 @@ import AuthDialog from "./components/AuthDialog";
 import AccountMenu from "./components/AccountMenu";
 import AccountSettings from "./components/AccountSettings";
 import ConflictDialog from "./components/ConflictDialog";
+import {
+  NoAccessOverlay,
+  SignInToOpenOverlay,
+} from "./components/DiagramAccessOverlay";
+import { EditorShare } from "./components/ShareDialog";
 import TrashDialog from "./components/TrashDialog";
 import VersionHistory from "./components/VersionHistory";
 import VersionPreviewBanner from "./components/VersionPreviewBanner";
@@ -44,6 +49,8 @@ function Extensions({ children }) {
   const extensions = useMemo(
     () => ({
       "header-actions-end": <AccountMenu />,
+      // Signed out: a link to someone's diagram asks to sign in
+      "canvas-overlay": <SignInToOpenOverlay />,
       // Signed in: new diagrams are saved to the server, and the Open
       // dialog lists them next to the ones in this browser
       ...(userId && {
@@ -53,9 +60,12 @@ function Extensions({ children }) {
           <>
             <ConflictDialog />
             <VersionPreviewBanner />
+            <NoAccessOverlay />
           </>
         ),
         "versions-panel": <VersionHistory />,
+        // Sharing with people replaces upstream's public gist links
+        "share-modal-content": <EditorShare />,
       }),
     }),
     [userId],

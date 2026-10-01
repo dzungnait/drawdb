@@ -9,11 +9,13 @@ import NotFound from "./pages/NotFound";
 import MigrationBanner, { isLegacyHost } from "./components/MigrationBanner";
 import CloudProvider from "./cloud/CloudProvider";
 import { ResetPasswordPage, VerifyEmailPage } from "./cloud/pages/AuthPages";
+import DiagramsPage from "./cloud/pages/DiagramsPage";
 
 export default function App() {
   const routes = (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/diagrams" element={<DiagramsPage />} />
       <Route path="/editor" element={<Editor />} />
       <Route path="/editor/diagrams/:id" element={<Editor />} />
       <Route path="/editor/templates/:id" element={<Editor />} />

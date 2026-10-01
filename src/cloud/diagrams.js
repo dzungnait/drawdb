@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { Toast } from "@douyinfe/semi-ui";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../data/db";
@@ -7,7 +8,10 @@ import { errorMessage } from "./i18n";
 import { isPreviewing, previewStore } from "./preview";
 
 export const diagramsApi = {
-  list: () => api.get("/diagrams").then((r) => r.data.diagrams),
+  list: (scope) =>
+    api
+      .get("/diagrams", { params: scope && { scope } })
+      .then((r) => r.data.diagrams),
   trash: () => api.get("/diagrams/trash").then((r) => r.data.diagrams),
   get: (id) => api.get(`/diagrams/${id}`).then((r) => r.data.diagram),
   create: (body) => api.post("/diagrams", body).then((r) => r.data.diagram),
@@ -29,6 +33,34 @@ const savedKeys = new Map();
 /** Diagrams whose last save hit a conflict; saving pauses until resolved. */
 const conflicts = new Map();
 const queues = new Map();
+/** The signed-in user's role on each loaded diagram. */
+const roles = new Map();
+/** Diagrams that don't exist or aren't shared with the user. */
+let missing = new Set();
+const missingListeners = new Set();
+
+function setMissing(id, isMissing) {
+  if (missing.has(id) === isMissing) return;
+  missing = new Set(missing);
+  if (isMissing) missing.add(id);
+  else missing.delete(id);
+  missingListeners.forEach((fn) => fn());
+}
+
+/** Whether the diagram couldn't be opened (not found or no access). */
+export function useIsMissing(id) {
+  const all = useSyncExternalStore(
+    (fn) => {
+      missingListeners.add(fn);
+      return () => missingListeners.delete(fn);
+    },
+    () => missing,
+  );
+  return Boolean(id) && all.has(id);
+}
+
+/** "owner" | "editor" | "viewer" for a loaded cloud diagram. */
+export const roleOf = (id) => roles.get(id) ?? null;
 const conflictListeners = new Set();
 
 export function onConflict(listener) {
@@ -254,11 +286,14 @@ export const cloudHooks = {
   async cloudLoad(id) {
     try {
       const diagram = await diagramsApi.get(id);
+      setMissing(id, false);
+      roles.set(id, diagram.role);
       versions.set(id, diagram.version);
       savedKeys.set(id, contentKey(diagram));
       conflicts.delete(id);
       return { ...diagram, ...readViewport(id) };
-    } catch {
+    } catch (e) {
+      if (errorCode(e) === "diagram_not_found") setMissing(id, true);
       return null;
     }
   },
@@ -319,5 +354,8 @@ export function resetCloudState() {
   savedKeys.clear();
   conflicts.clear();
   queues.clear();
+  roles.clear();
+  missing = new Set();
+  missingListeners.forEach((fn) => fn());
   previewStore.set(null);
 }

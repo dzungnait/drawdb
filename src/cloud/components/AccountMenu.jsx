@@ -1,5 +1,6 @@
 import { Avatar, Button, Dropdown, Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { auth } from "../api";
 
@@ -26,6 +27,7 @@ export function UserAvatar({ user, size = "small" }) {
 export default function AccountMenu({ variant = "editor" }) {
   const { t } = useTranslation();
   const { available, user, openDialog, signOut } = useAuth();
+  const navigate = useNavigate();
 
   if (!available) return null;
 
@@ -66,6 +68,12 @@ export default function AccountMenu({ variant = "editor" }) {
               {t("cloud_resend_verification")}
             </Dropdown.Item>
           )}
+          <Dropdown.Item
+            icon={<i className="fa-regular fa-folder-open" />}
+            onClick={() => navigate("/diagrams")}
+          >
+            {t("cloud_my_diagrams")}
+          </Dropdown.Item>
           <Dropdown.Item
             icon={<i className="fa-regular fa-trash-can" />}
             onClick={() => openDialog("trash")}
