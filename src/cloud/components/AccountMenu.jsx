@@ -70,7 +70,7 @@ export default function AccountMenu({ variant = "editor" }) {
           )}
           <Dropdown.Item
             icon={<i className="fa-regular fa-folder-open" />}
-            onClick={() => navigate("/diagrams")}
+            onClick={() => navigate("/")}
           >
             {t("cloud_my_diagrams")}
           </Dropdown.Item>

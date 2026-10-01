@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   Banner,
   Button,
@@ -28,6 +28,7 @@ import { diagramsApi } from "../diagrams";
 import { errorMessage } from "../i18n";
 import { membersApi } from "../sharing";
 import AccountMenu from "../components/AccountMenu";
+import LanguageSwitch from "../components/LanguageSwitch";
 import ShareDialog from "../components/ShareDialog";
 
 const ROLE_COLORS = { owner: "blue", editor: "green", viewer: "grey" };
@@ -37,6 +38,7 @@ export default function DiagramsPage() {
   const { t } = useTranslation();
   const { settings } = useSettings();
   const { status, user, openDialog } = useAuth();
+  const navigate = useNavigate();
   useThemedPage();
 
   useEffect(() => {
@@ -51,29 +53,24 @@ export default function DiagramsPage() {
       </div>
     );
   } else if (status === "unavailable") {
-    body = (
-      <Banner
-        closeIcon={null}
-        description={
-          <>
-            {t("cloud_accounts_unavailable")}{" "}
-            <Link to="/editor" className="underline">
-              Editor
-            </Link>
-          </>
-        }
-      />
-    );
+    // No accounts on this server: the editor (with browser storage) is all there is
+    return <Navigate to="/editor" replace />;
   } else if (!user) {
     body = (
       <Empty
         className="py-16"
         image={<i className="bi bi-person-lock text-6xl opacity-50" />}
         title={t("cloud_sign_in_to_see")}
+        description={t("cloud_or_use_locally")}
       >
-        <Button theme="solid" onClick={() => openDialog("signin")}>
-          {t("cloud_sign_in")}
-        </Button>
+        <div className="flex justify-center gap-2">
+          <Button theme="solid" onClick={() => openDialog("signin")}>
+            {t("cloud_sign_in")}
+          </Button>
+          <Button onClick={() => navigate("/editor")}>
+            {t("cloud_use_without_account")}
+          </Button>
+        </div>
       </Empty>
     );
   } else {
@@ -95,10 +92,13 @@ export default function DiagramsPage() {
             {t("cloud_diagrams")}
           </div>
         </div>
-        <AccountMenu variant="landing" />
+        <div className="flex items-center gap-2">
+          <LanguageSwitch />
+          <AccountMenu variant="landing" />
+        </div>
       </div>
       <hr className="border-[var(--semi-color-border)]" />
-      <div className="px-12 sm:px-4 py-6 max-w-6xl">{body}</div>
+      <div className="px-12 sm:px-4 py-6 max-w-6xl mx-auto">{body}</div>
     </div>
   );
 }

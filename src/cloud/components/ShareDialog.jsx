@@ -42,7 +42,7 @@ export function EditorShare() {
   if (opened?.access === "link") {
     return <Banner closeIcon={null} description={t("cloud_share_via_link")} />;
   }
-  return <ShareDialog diagramId={id} onLeft={() => navigate("/diagrams")} />;
+  return <ShareDialog diagramId={id} onLeft={() => navigate("/")} />;
 }
 
 /** Who has access to a diagram; the owner can share and change roles. */

@@ -137,8 +137,11 @@ const strings = {
     cloud_leave_confirm: "You'll lose access until the owner shares it again.",
     cloud_left: "You left the diagram",
     cloud_sign_in_to_see: "Sign in to see your diagrams",
-    cloud_accounts_unavailable:
-      "Accounts aren't available on this server. Diagrams are kept in this browser; open them from the editor.",
+    cloud_or_use_locally:
+      "Or use the editor without an account: diagrams are then kept in this browser only.",
+    cloud_use_without_account: "Use without an account",
+    cloud_page_not_found: "This page doesn't exist",
+    cloud_go_home: "Go to my diagrams",
     "cloud_role.owner": "Owner",
     "cloud_role.editor": "Editor",
     "cloud_role.viewer": "Viewer",
@@ -357,8 +360,11 @@ const strings = {
       "Bạn sẽ mất quyền truy cập cho đến khi chủ sở hữu chia sẻ lại.",
     cloud_left: "Bạn đã rời khỏi diagram",
     cloud_sign_in_to_see: "Đăng nhập để xem các diagram của bạn",
-    cloud_accounts_unavailable:
-      "Máy chủ này không hỗ trợ tài khoản. Diagram được lưu trong trình duyệt, hãy mở chúng từ editor.",
+    cloud_or_use_locally:
+      "Hoặc dùng editor không cần tài khoản: khi đó diagram chỉ được lưu trong trình duyệt này.",
+    cloud_use_without_account: "Dùng không cần tài khoản",
+    cloud_page_not_found: "Trang này không tồn tại",
+    cloud_go_home: "Về danh sách diagram",
     "cloud_role.owner": "Chủ sở hữu",
     "cloud_role.editor": "Người chỉnh sửa",
     "cloud_role.viewer": "Người xem",

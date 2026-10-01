@@ -1,36 +1,23 @@
-import { socials } from "../data/socials";
+import { useNavigate } from "react-router-dom";
+import { Button, Empty } from "@douyinfe/semi-ui";
+import { useTranslation } from "react-i18next";
+import { useThemedPage } from "../hooks";
 
 export default function NotFound() {
-  return (
-    <div className="p-3 space-y-2">
-      <p>hey there!</p>
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  useThemedPage();
 
-      <p>looking for something you couldn&apos;t find?</p>
-      <p>
-        check out the{" "}
-        <a className="text-blue-600" href={socials.docs}>
-          docs
-        </a>
-        ,{" "}
-        <a className="text-blue-600" href="mailto:drawdb@outlook.com">
-          shoot us an email
-        </a>{" "}
-        or{" "}
-        <a className="text-blue-600" href={socials.discord}>
-          a message on discord
-        </a>
-      </p>
-      <br />
-      <p className="opacity-70">
-        * to create a relationship hold the blue dot of a field and drag it
-        towards the field you want to connect it to
-      </p>
-      <a
-        className="text-blue-600"
-        href={`${socials.docs}/create-diagram#relationships`}
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--semi-color-bg-0)]">
+      <Empty
+        image={<div className="text-6xl font-bold opacity-30">404</div>}
+        title={t("cloud_page_not_found")}
       >
-        see here
-      </a>
+        <Button theme="solid" onClick={() => navigate("/")}>
+          {t("cloud_go_home")}
+        </Button>
+      </Empty>
     </div>
   );
 }

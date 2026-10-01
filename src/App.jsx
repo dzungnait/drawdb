@@ -1,9 +1,12 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
 import { useLayoutEffect } from "react";
 import Editor from "./pages/Editor";
-import BugReport from "./pages/BugReport";
-import Templates from "./pages/Templates";
-import LandingPage from "./pages/LandingPage";
 import SettingsContextProvider from "./context/SettingsContext";
 import NotFound from "./pages/NotFound";
 import MigrationBanner, { isLegacyHost } from "./components/MigrationBanner";
@@ -14,13 +17,11 @@ import DiagramsPage from "./cloud/pages/DiagramsPage";
 export default function App() {
   const routes = (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/diagrams" element={<DiagramsPage />} />
+      <Route path="/" element={<DiagramsPage />} />
+      <Route path="/diagrams" element={<Navigate to="/" replace />} />
       <Route path="/editor" element={<Editor />} />
       <Route path="/editor/diagrams/:id" element={<Editor />} />
       <Route path="/editor/templates/:id" element={<Editor />} />
-      <Route path="/bug-report" element={<BugReport />} />
-      <Route path="/templates" element={<Templates />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<NotFound />} />

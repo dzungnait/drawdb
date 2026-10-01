@@ -42,7 +42,7 @@ export function NoAccessOverlay() {
           : t("cloud_no_access", { email: user?.email })}
       </p>
       <div className="flex justify-center gap-2 mt-5">
-        <Button theme="solid" onClick={() => navigate("/diagrams")}>
+        <Button theme="solid" onClick={() => navigate("/")}>
           {t("cloud_my_diagrams")}
         </Button>
         <Button onClick={() => navigate("/editor")}>
