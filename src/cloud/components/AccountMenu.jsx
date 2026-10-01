@@ -67,6 +67,12 @@ export default function AccountMenu({ variant = "editor" }) {
             </Dropdown.Item>
           )}
           <Dropdown.Item
+            icon={<i className="fa-regular fa-trash-can" />}
+            onClick={() => openDialog("trash")}
+          >
+            {t("cloud_trash")}
+          </Dropdown.Item>
+          <Dropdown.Item
             icon={<i className="fa-solid fa-gear" />}
             onClick={() => openDialog("settings")}
           >

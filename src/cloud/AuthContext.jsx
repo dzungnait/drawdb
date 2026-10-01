@@ -79,6 +79,10 @@ export default function AuthProvider({ children }) {
     await auth.logout().catch(() => {});
     setUser(null);
     Toast.info(t("cloud_signed_out"));
+    // A server diagram can't stay open (or be saved) once signed out
+    if (window.location.pathname.startsWith("/editor/diagrams/")) {
+      window.location.assign("/editor");
+    }
   }, [t]);
 
   const refresh = useCallback(async () => {
