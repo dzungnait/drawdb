@@ -33,34 +33,48 @@ const savedKeys = new Map();
 /** Diagrams whose last save hit a conflict; saving pauses until resolved. */
 const conflicts = new Map();
 const queues = new Map();
-/** The signed-in user's role on each loaded diagram. */
-const roles = new Map();
-/** Diagrams that don't exist or aren't shared with the user. */
-let missing = new Set();
-const missingListeners = new Set();
+/**
+ * What happened when each diagram was opened:
+ * { status: "ok", role, access, signInToEdit } or { status: "missing" }.
+ */
+let opened = new Map();
+const openedListeners = new Set();
 
-function setMissing(id, isMissing) {
-  if (missing.has(id) === isMissing) return;
-  missing = new Set(missing);
-  if (isMissing) missing.add(id);
-  else missing.delete(id);
-  missingListeners.forEach((fn) => fn());
+function setOpened(id, info) {
+  opened = new Map(opened).set(id, info);
+  openedListeners.forEach((fn) => fn());
 }
 
-/** Whether the diagram couldn't be opened (not found or no access). */
-export function useIsMissing(id) {
+/** How the diagram was opened (see `opened`), re-rendering on change. */
+export function useOpened(id) {
   const all = useSyncExternalStore(
     (fn) => {
-      missingListeners.add(fn);
-      return () => missingListeners.delete(fn);
+      openedListeners.add(fn);
+      return () => openedListeners.delete(fn);
     },
-    () => missing,
+    () => opened,
   );
-  return Boolean(id) && all.has(id);
+  return (id && all.get(id)) || null;
 }
 
-/** "owner" | "editor" | "viewer" for a loaded cloud diagram. */
-export const roleOf = (id) => roles.get(id) ?? null;
+/** "owner" | "editor" | "viewer" for an opened cloud diagram. */
+export const roleOf = (id) => opened.get(id)?.role ?? null;
+
+/** Share link tokens the diagrams were opened with, sent with every request. */
+const linkTokens = new Map();
+
+/** The ?link= of the current page, if any. */
+export const linkInUrl = () =>
+  new URLSearchParams(window.location.search).get("link");
+
+api.interceptors.request.use((request) => {
+  const id = request.url?.match(/^\/diagrams\/([0-9a-f-]{36})/)?.[1];
+  if (id && linkTokens.has(id)) {
+    request.headers.set("X-Share-Link", linkTokens.get(id));
+  }
+  return request;
+});
+
 const conflictListeners = new Set();
 
 export function onConflict(listener) {
@@ -284,16 +298,25 @@ export const cloudHooks = {
   },
 
   async cloudLoad(id) {
+    const link = linkInUrl();
+    if (link) linkTokens.set(id, link);
     try {
       const diagram = await diagramsApi.get(id);
-      setMissing(id, false);
-      roles.set(id, diagram.role);
+      setOpened(id, {
+        status: "ok",
+        role: diagram.role,
+        access: diagram.access,
+        signInToEdit: diagram.signInToEdit,
+      });
       versions.set(id, diagram.version);
       savedKeys.set(id, contentKey(diagram));
       conflicts.delete(id);
       return { ...diagram, ...readViewport(id) };
     } catch (e) {
-      if (errorCode(e) === "diagram_not_found") setMissing(id, true);
+      const code = errorCode(e);
+      if (code === "diagram_not_found" || code === "link_invalid") {
+        setOpened(id, { status: "missing", code });
+      }
       return null;
     }
   },
@@ -354,8 +377,17 @@ export function resetCloudState() {
   savedKeys.clear();
   conflicts.clear();
   queues.clear();
-  roles.clear();
-  missing = new Set();
-  missingListeners.forEach((fn) => fn());
+  opened = new Map();
+  openedListeners.forEach((fn) => fn());
   previewStore.set(null);
+}
+
+/**
+ * Signed out, diagrams can still be opened with a view link; nothing is
+ * saved to the server.
+ */
+export async function loadWithLink(id) {
+  if (!linkInUrl()) return null;
+  const diagram = await cloudHooks.cloudLoad(id);
+  return diagram && { ...diagram, canWrite: false };
 }

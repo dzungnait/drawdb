@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
 import { db } from "../../data/db";
 import { useAuth } from "../AuthContext";
-import { useIsMissing } from "../diagrams";
+import { linkInUrl, useOpened } from "../diagrams";
 
 function Card({ icon, title, children }) {
   return (
@@ -27,13 +27,19 @@ export function NoAccessOverlay() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const missing = useIsMissing(id);
+  const opened = useOpened(id);
 
-  if (!missing) return null;
+  if (opened?.status !== "missing") return null;
+  const badLink = opened.code === "link_invalid";
   return (
-    <Card icon="bi bi-lock" title={t("cloud_no_access_title")}>
+    <Card
+      icon={badLink ? "bi bi-link-45deg" : "bi bi-lock"}
+      title={t(badLink ? "cloud_link_invalid_title" : "cloud_no_access_title")}
+    >
       <p className="opacity-80 mt-2">
-        {t("cloud_no_access", { email: user?.email })}
+        {badLink
+          ? t("cloud_link_invalid")
+          : t("cloud_no_access", { email: user?.email })}
       </p>
       <div className="flex justify-center gap-2 mt-5">
         <Button theme="solid" onClick={() => navigate("/diagrams")}>
@@ -53,15 +59,24 @@ export function SignInToOpenOverlay() {
   const isDiagram = useMatch("/editor/diagrams/:id");
   const id = isDiagram?.params.id;
   const { available, user, openDialog } = useAuth();
+  const opened = useOpened(id);
   const local = useLiveQuery(
     () => (id ? db.diagrams.where("diagramId").equals(id).count() : 0),
     [id],
   );
 
   if (!id || !available || user || local !== 0) return null;
+  // A share link opens it without an account, unless the link is bad
+  const withLink = Boolean(linkInUrl());
+  if (withLink && opened?.status !== "missing") return null;
   return (
-    <Card icon="bi bi-person-lock" title={t("cloud_sign_in_to_open")}>
-      <p className="opacity-80 mt-2">{t("cloud_sign_in_to_open_hint")}</p>
+    <Card
+      icon={withLink ? "bi bi-link-45deg" : "bi bi-person-lock"}
+      title={t(withLink ? "cloud_link_invalid_title" : "cloud_sign_in_to_open")}
+    >
+      <p className="opacity-80 mt-2">
+        {t(withLink ? "cloud_link_invalid" : "cloud_sign_in_to_open_hint")}
+      </p>
       <Button
         theme="solid"
         className="mt-5"
@@ -70,5 +85,26 @@ export function SignInToOpenOverlay() {
         {t("cloud_sign_in")}
       </Button>
     </Card>
+  );
+}
+
+/** Signed out with an edit link: viewing now, editing after signing in. */
+export function SignInToEditBanner() {
+  const { t } = useTranslation();
+  const isDiagram = useMatch("/editor/diagrams/:id");
+  const opened = useOpened(isDiagram?.params.id);
+  const { user, openDialog } = useAuth();
+
+  if (user || !opened?.signInToEdit) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-50 flex justify-center">
+      <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-blue-300 bg-blue-50 px-5 py-1.5 shadow-md dark:border-sky-900/50 dark:bg-sky-900/30">
+        <i className="bi bi-pencil-square" />
+        <span className="text-sm">{t("cloud_sign_in_to_edit")}</span>
+        <Button size="small" theme="solid" onClick={() => openDialog("signin")}>
+          {t("cloud_sign_in")}
+        </Button>
+      </div>
+    </div>
   );
 }

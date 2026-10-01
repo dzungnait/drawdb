@@ -7,13 +7,19 @@ import AccountSettings from "./components/AccountSettings";
 import ConflictDialog from "./components/ConflictDialog";
 import {
   NoAccessOverlay,
+  SignInToEditBanner,
   SignInToOpenOverlay,
 } from "./components/DiagramAccessOverlay";
 import { EditorShare } from "./components/ShareDialog";
 import TrashDialog from "./components/TrashDialog";
 import VersionHistory from "./components/VersionHistory";
 import VersionPreviewBanner from "./components/VersionPreviewBanner";
-import { cloudHooks, hasUnsavedChanges, resetCloudState } from "./diagrams";
+import {
+  cloudHooks,
+  hasUnsavedChanges,
+  loadWithLink,
+  resetCloudState,
+} from "./diagrams";
 import "./i18n";
 
 /**
@@ -49,8 +55,15 @@ function Extensions({ children }) {
   const extensions = useMemo(
     () => ({
       "header-actions-end": <AccountMenu />,
-      // Signed out: a link to someone's diagram asks to sign in
-      "canvas-overlay": <SignInToOpenOverlay />,
+      // Signed out: share links still open diagrams (view only); other
+      // links to someone's diagram ask to sign in
+      cloudLoad: loadWithLink,
+      "canvas-overlay": (
+        <>
+          <SignInToOpenOverlay />
+          <SignInToEditBanner />
+        </>
+      ),
       // Signed in: new diagrams are saved to the server, and the Open
       // dialog lists them next to the ones in this browser
       ...(userId && {

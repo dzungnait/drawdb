@@ -15,10 +15,11 @@ import { IconLink } from "@douyinfe/semi-icons";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../AuthContext";
 import { errorCode } from "../api";
-import { isCloudDiagram } from "../diagrams";
+import { isCloudDiagram, useOpened } from "../diagrams";
 import { errorMessage } from "../i18n";
 import { membersApi } from "../sharing";
 import { UserAvatar } from "./AccountMenu";
+import LinkSharing from "./LinkSharing";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,12 +31,16 @@ export function EditorShare() {
   const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
+  const opened = useOpened(id);
 
   if (!id || id === "blank") {
     return <Banner closeIcon={null} description={t("cloud_share_unsaved")} />;
   }
   if (!isCloudDiagram(id)) {
     return <Banner closeIcon={null} description={t("cloud_share_local")} />;
+  }
+  if (opened?.access === "link") {
+    return <Banner closeIcon={null} description={t("cloud_share_via_link")} />;
   }
   return <ShareDialog diagramId={id} onLeft={() => navigate("/diagrams")} />;
 }
@@ -255,6 +260,8 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
           </div>
         ))}
       </div>
+
+      {isOwner && <LinkSharing diagramId={diagramId} />}
 
       <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--semi-color-border)]">
         <div className="flex-1 text-xs opacity-70">

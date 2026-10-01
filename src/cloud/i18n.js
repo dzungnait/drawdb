@@ -155,7 +155,7 @@ const strings = {
     cloud_shared_with: "Shared with {{email}}",
     cloud_invited:
       "Invited {{email}}. They'll get access after signing up with this email.",
-    cloud_share_link_hint: "Only people with access can open this link.",
+    cloud_share_link_hint: "Link for the people listed above.",
     cloud_copy_link: "Copy link",
     cloud_link_copied: "Link copied",
     cloud_share_local:
@@ -175,6 +175,31 @@ const strings = {
     "cloud_error.member_not_found": "That person no longer has access",
     "cloud_error.invite_not_found": "That invitation no longer exists",
     "cloud_error.invalid_input": "Check the highlighted values",
+    cloud_link_sharing: "Share with a link",
+    cloud_link_viewer: "Anyone with the link can view",
+    cloud_link_viewer_hint: "No account needed",
+    cloud_link_editor: "Anyone with the link can edit",
+    cloud_link_editor_hint:
+      "Once signed in. Without an account they can only view.",
+    cloud_link_never_expires: "Never expires",
+    cloud_link_expires_in_one: "Expires in {{count}} day",
+    cloud_link_expires_in_other: "Expires in {{count}} days",
+    cloud_link_expires_at: "Expires {{date}}",
+    cloud_link_expired_at: "Expired {{date}}",
+    cloud_link_regenerate: "New link",
+    cloud_link_regenerate_confirm:
+      "The current link stops working, so people who have it lose access through it.",
+    cloud_link_invalid_title: "This link doesn't work",
+    cloud_link_invalid:
+      "It may have expired, been replaced or turned off. Ask the owner for a new link.",
+    cloud_sign_in_to_edit: "You can view this diagram. Sign in to edit it.",
+    cloud_share_via_link:
+      "You opened this diagram through a share link. Only the owner can change who has access.",
+    "cloud_error.link_invalid": "This link doesn't work anymore",
+    "cloud_error.link_not_found": "That link is turned off",
+    "cloud_error.expiry_in_past": "Pick a time in the future",
+    "cloud_error.members_only":
+      "Only people the diagram is shared with can see this",
     "cloud_error.diagram_limit_reached":
       "You've reached the maximum number of diagrams",
     "cloud_error.read_only": "You can only view this diagram",
@@ -350,7 +375,7 @@ const strings = {
     cloud_shared_with: "Đã chia sẻ với {{email}}",
     cloud_invited:
       "Đã mời {{email}}. Người này sẽ có quyền sau khi đăng ký bằng email này.",
-    cloud_share_link_hint: "Chỉ những người có quyền mới mở được link này.",
+    cloud_share_link_hint: "Link dành cho những người trong danh sách trên.",
     cloud_copy_link: "Sao chép link",
     cloud_link_copied: "Đã sao chép link",
     cloud_share_local:
@@ -370,6 +395,29 @@ const strings = {
     "cloud_error.member_not_found": "Người này không còn quyền truy cập",
     "cloud_error.invite_not_found": "Lời mời này không còn tồn tại",
     "cloud_error.invalid_input": "Hãy kiểm tra lại thông tin đã nhập",
+    cloud_link_sharing: "Chia sẻ bằng link",
+    cloud_link_viewer: "Ai có link đều xem được",
+    cloud_link_viewer_hint: "Không cần tài khoản",
+    cloud_link_editor: "Ai có link đều sửa được",
+    cloud_link_editor_hint:
+      "Sau khi đăng nhập. Chưa có tài khoản thì chỉ xem được.",
+    cloud_link_never_expires: "Không hết hạn",
+    cloud_link_expires_in_other: "Hết hạn sau {{count}} ngày",
+    cloud_link_expires_at: "Hết hạn lúc {{date}}",
+    cloud_link_expired_at: "Đã hết hạn lúc {{date}}",
+    cloud_link_regenerate: "Tạo link mới",
+    cloud_link_regenerate_confirm:
+      "Link hiện tại sẽ ngừng hoạt động, ai đang giữ link đó sẽ mất quyền truy cập qua link.",
+    cloud_link_invalid_title: "Link này không dùng được",
+    cloud_link_invalid:
+      "Link có thể đã hết hạn, đã được thay mới hoặc đã bị tắt. Hãy xin chủ sở hữu link mới.",
+    cloud_sign_in_to_edit: "Bạn đang xem diagram này. Đăng nhập để chỉnh sửa.",
+    cloud_share_via_link:
+      "Bạn mở diagram này qua link chia sẻ. Chỉ chủ sở hữu mới thay đổi được quyền truy cập.",
+    "cloud_error.link_invalid": "Link này không còn dùng được",
+    "cloud_error.link_not_found": "Link này đang tắt",
+    "cloud_error.expiry_in_past": "Hãy chọn thời điểm trong tương lai",
+    "cloud_error.members_only": "Chỉ người được chia sẻ mới xem được mục này",
     "cloud_error.diagram_limit_reached": "Bạn đã đạt số lượng diagram tối đa",
     "cloud_error.read_only": "Bạn chỉ có quyền xem diagram này",
     "cloud_error.diagram_not_found": "Không tìm thấy diagram",

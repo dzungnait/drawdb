@@ -14,3 +14,20 @@ export const membersApi = {
   cancelInvite: (id, inviteId) =>
     api.delete(`${base(id)}/invites/${inviteId}`).then((r) => r.data),
 };
+
+/** View and edit links: [{ role, token, expiresAt, expired }]. */
+export const linksApi = {
+  list: (id) => api.get(`${base(id)}/links`).then((r) => r.data.links),
+  /** Turns the link on, or changes its expiry (null: never). */
+  set: (id, role, expiresAt) =>
+    api
+      .put(`${base(id)}/links/${role}`, { expiresAt })
+      .then((r) => r.data.links),
+  regenerate: (id, role) =>
+    api.post(`${base(id)}/links/${role}/regenerate`).then((r) => r.data.links),
+  remove: (id, role) =>
+    api.delete(`${base(id)}/links/${role}`).then((r) => r.data.links),
+};
+
+export const shareLinkUrl = (id, token) =>
+  `${window.location.origin}/editor/diagrams/${id}?link=${encodeURIComponent(token)}`;
