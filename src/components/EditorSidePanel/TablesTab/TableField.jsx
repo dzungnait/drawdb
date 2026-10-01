@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { Action, ObjectType } from "../../../data/constants";
 import { Input, Button, Popover, Select } from "@douyinfe/semi-ui";
-import { IconMore, IconKeyStroked } from "@douyinfe/semi-icons";
+import {
+  IconMore,
+  IconKeyStroked,
+  IconCopyStroked,
+} from "@douyinfe/semi-icons";
 import {
   useEnums,
   useDiagram,
@@ -16,7 +20,7 @@ import FieldDetails from "./FieldDetails";
 import { getCustomTypesForDb, resolveType } from "../../../utils/customTypes";
 
 export default function TableField({ data, tid, index, inherited }) {
-  const { updateField } = useDiagram();
+  const { updateField, duplicateField } = useDiagram();
   const { types } = useTypes();
   const { enums } = useEnums();
   const { layout } = useLayout();
@@ -30,7 +34,7 @@ export default function TableField({ data, tid, index, inherited }) {
     <div className="hover-1 my-2 flex gap-2 items-center">
       <DragHandle readOnly={layout.readOnly} id={data.id} />
 
-      <div className="min-w-20 flex-1/3">
+      <div className="min-w-16 flex-1/3">
         <Input
           value={data.name}
           id={`scroll_table_${tid}_input_${index}`}
@@ -64,7 +68,7 @@ export default function TableField({ data, tid, index, inherited }) {
         />
       </div>
 
-      <div className="min-w-24 flex-1/3">
+      <div className="min-w-20 flex-1/3">
         <Select
           className="w-full"
           optionList={[
@@ -212,6 +216,16 @@ export default function TableField({ data, tid, index, inherited }) {
             setRedoStack([]);
             updateField(tid, data.id, { primary: !data.primary });
           }}
+        />
+      </div>
+
+      <div>
+        <Button
+          title={t("duplicate")}
+          type="tertiary"
+          icon={<IconCopyStroked />}
+          disabled={layout.readOnly}
+          onClick={() => duplicateField(tid, data.id)}
         />
       </div>
 

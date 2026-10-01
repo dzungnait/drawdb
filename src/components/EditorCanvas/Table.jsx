@@ -602,19 +602,33 @@ const TableView = memo(function TableView({
           </div>
           <div className="text-zinc-400">
             {hoveredField === index ? (
-              <Button
-                theme="solid"
-                size="small"
-                style={{
-                  backgroundColor: "#d42020b3",
-                }}
-                icon={<IconMinus />}
-                disabled={layout.readOnly}
-                onClick={() => {
-                  if (layout.readOnly) return;
-                  actions.current.deleteField(fieldData, tableData.id);
-                }}
-              />
+              <div className="flex gap-1">
+                <Button
+                  theme="solid"
+                  size="small"
+                  title={t("duplicate")}
+                  icon={<IconCopyStroked />}
+                  disabled={layout.readOnly}
+                  onClick={() => {
+                    if (layout.readOnly) return;
+                    actions.current.duplicateField(tableData.id, fieldData.id);
+                  }}
+                />
+                <Button
+                  theme="solid"
+                  size="small"
+                  title={t("delete")}
+                  style={{
+                    backgroundColor: "#d42020b3",
+                  }}
+                  icon={<IconMinus />}
+                  disabled={layout.readOnly}
+                  onClick={() => {
+                    if (layout.readOnly) return;
+                    actions.current.deleteField(fieldData, tableData.id);
+                  }}
+                />
+              </div>
             ) : settings.showDataTypes ? (
               <div className="flex gap-1 items-center">
                 {fieldData.primary && <IconKeyStroked />}
@@ -689,6 +703,7 @@ function Table(props) {
     addTable: diagram.addTable,
     deleteTable: diagram.deleteTable,
     deleteField: diagram.deleteField,
+    duplicateField: diagram.duplicateField,
     updateTable: diagram.updateTable,
     selectedElement,
     setSelectedElement: select.setSelectedElement,
