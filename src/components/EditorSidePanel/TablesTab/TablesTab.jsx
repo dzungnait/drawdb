@@ -1,3 +1,4 @@
+import { memo, useRef } from "react";
 import { Collapse, Button } from "@douyinfe/semi-ui";
 import { IconEyeOpened, IconEyeClosed } from "@douyinfe/semi-icons";
 import { IconPlus } from "@douyinfe/semi-icons";
@@ -17,11 +18,15 @@ import Empty from "../Empty";
 import TableInfo from "./TableInfo";
 
 export default function TablesTab() {
-  const { tables, addTable, setTables } = useDiagram();
+  const { tables, addTable, setTables, updateTable } = useDiagram();
   const { selectedElement, setSelectedElement } = useSelect();
   const { t } = useTranslation();
   const { layout } = useLayout();
   const { setSaveState } = useSaveState();
+  // Read when used, so list items don't re-render on every diagram change
+  // (moving one table would otherwise re-render the whole list)
+  const updateTableRef = useRef(updateTable);
+  updateTableRef.current = updateTable;
 
   return (
     <>
@@ -64,7 +69,13 @@ export default function TablesTab() {
             items={tables}
             onChange={(newTables) => setTables(newTables)}
             afterChange={() => setSaveState(State.SAVING)}
-            renderItem={(item) => <TableListItem table={item} />}
+            renderItem={(item) => (
+              <TableListItem
+                table={item}
+                readOnly={layout.readOnly}
+                updateTable={updateTableRef}
+              />
+            )}
           />
         </Collapse>
       )}
@@ -72,9 +83,11 @@ export default function TablesTab() {
   );
 }
 
-function TableListItem({ table }) {
-  const { layout } = useLayout();
-  const { updateTable } = useDiagram();
+const TableListItem = memo(function TableListItem({
+  table,
+  readOnly,
+  updateTable,
+}) {
   const { setUndoStack, setRedoStack } = useUndoRedo();
   const { t } = useTranslation();
 
@@ -96,7 +109,7 @@ function TableListItem({ table }) {
       },
     ]);
     setRedoStack([]);
-    updateTable(table.id, { hidden: !table.hidden });
+    updateTable.current(table.id, { hidden: !table.hidden });
   };
 
   return (
@@ -106,7 +119,7 @@ function TableListItem({ table }) {
         header={
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2 flex-1">
-              <DragHandle readOnly={layout.readOnly} id={table.id} />
+              <DragHandle readOnly={readOnly} id={table.id} />
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">
                 {table.name}
               </div>
@@ -131,4 +144,4 @@ function TableListItem({ table }) {
       </Collapse.Panel>
     </div>
   );
-}
+});

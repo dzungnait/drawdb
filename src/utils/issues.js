@@ -305,33 +305,38 @@ export function getIssues(diagram) {
     }
   });
 
-  const visitedTables = new Set();
+  // One walk over the references (start table -> end table), so large
+  // diagrams stay fast: each table and reference is visited once
+  const referencedTables = new Map();
+  diagram.relationships.forEach((r) => {
+    if (r.startTableId === r.endTableId) return;
+    if (!referencedTables.has(r.startTableId)) {
+      referencedTables.set(r.startTableId, []);
+    }
+    referencedTables.get(r.startTableId).push(r.endTableId);
+  });
+  const tableNameById = new Map(diagram.tables.map((t) => [t.id, t.name]));
+  const onPath = new Set();
+  const checked = new Set();
 
-  function checkCircularRelationships(tableId, visited = []) {
-    if (visited.includes(tableId)) {
+  function checkCircularRelationships(tableId) {
+    if (onPath.has(tableId)) {
       issues.push(
-        i18n.t("circular_dependency", {
-          refName: diagram.tables.find((t) => t.id === tableId)?.name,
-        }),
+        i18n.t("circular_dependency", { refName: tableNameById.get(tableId) }),
       );
       return;
     }
+    if (checked.has(tableId)) return;
 
-    visited.push(tableId);
-    visitedTables.add(tableId);
-
-    diagram.relationships.forEach((r) => {
-      if (r.startTableId === tableId && r.startTableId !== r.endTableId) {
-        checkCircularRelationships(r.endTableId, [...visited]);
-      }
-    });
+    onPath.add(tableId);
+    for (const next of referencedTables.get(tableId) ?? []) {
+      checkCircularRelationships(next);
+    }
+    onPath.delete(tableId);
+    checked.add(tableId);
   }
 
-  diagram.tables.forEach((table) => {
-    if (!visitedTables.has(table.id)) {
-      checkCircularRelationships(table.id);
-    }
-  });
+  diagram.tables.forEach((table) => checkCircularRelationships(table.id));
 
   return issues;
 }

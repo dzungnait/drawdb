@@ -11,6 +11,8 @@ import {
 } from "../../hooks";
 import { useTranslation } from "react-i18next";
 
+const ISSUES_DELAY_MS = 300;
+
 export default function Issues({ dbmlProblems = [] }) {
   const { types } = useTypes();
   const { t } = useTranslation();
@@ -20,8 +22,9 @@ export default function Issues({ dbmlProblems = [] }) {
   const { tables, relationships, database } = useDiagram();
   const [issues, setIssues] = useState([]);
 
+  // Checked once edits pause, not on every step of a drag
   useEffect(() => {
-    const findIssues = async () => {
+    const timer = setTimeout(() => {
       const newIssues = getIssues({
         tables: tables,
         relationships: relationships,
@@ -31,13 +34,11 @@ export default function Issues({ dbmlProblems = [] }) {
         views: views,
       });
 
-      if (!arrayIsEqual(newIssues, issues)) {
-        setIssues(newIssues);
-      }
-    };
+      setIssues((prev) => (arrayIsEqual(newIssues, prev) ? prev : newIssues));
+    }, ISSUES_DELAY_MS);
 
-    findIssues();
-  }, [tables, relationships, issues, types, database, enums, views]);
+    return () => clearTimeout(timer);
+  }, [tables, relationships, types, database, enums, views]);
 
   const badgeCount = settings.strictMode
     ? dbmlProblems.length || null
