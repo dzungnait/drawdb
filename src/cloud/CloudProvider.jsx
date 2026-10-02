@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import ExtensionsContext from "../context/ExtensionsContext";
+import { CollabContext } from "../context/CollabContext";
 import AuthProvider, { useAuth } from "./AuthContext";
 import AuthDialog from "./components/AuthDialog";
 import AccountMenu from "./components/AccountMenu";
@@ -23,6 +24,7 @@ import {
 import CollabBridge from "./collab/CollabBridge";
 import LiveCursors from "./collab/LiveCursors";
 import PresenceBar from "./collab/PresenceBar";
+import { activeSession } from "./collab/session";
 import "./i18n";
 
 /** Over the canvas when signed out: share links, live view-only. */
@@ -47,6 +49,14 @@ function EditorOverlay(props) {
     </>
   );
 }
+
+// Changes go through the live session's state diffing, not emitDelta; the
+// canvas's awareness (the relationship line being dragged) goes to the others
+const collab = {
+  emitDelta: () => {},
+  emitAwareness: (update) => activeSession()?.sendAwareness(update),
+  isApplyingRemoteRef: { current: false },
+};
 
 /**
  * Entry point of the cloud features. Plugs into the editor through the
@@ -104,7 +114,7 @@ function Extensions({ children }) {
 
   return (
     <ExtensionsContext.Provider value={extensions}>
-      {children}
+      <CollabContext.Provider value={collab}>{children}</CollabContext.Provider>
       <AuthDialog />
       {/* Mounted on open, so they start from fresh data */}
       {dialog === "settings" && <AccountSettings />}

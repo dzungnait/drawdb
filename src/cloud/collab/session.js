@@ -360,14 +360,20 @@ export class Session {
     this.notify();
   }
 
-  onAwareness({ sid, cursor, selection }) {
+  onAwareness({ sid, cursor, selection, linking }) {
     const peer = this.peers.get(sid);
     if (!peer) return;
-    this.peers.set(sid, { ...peer, cursor, selection, seenAt: Date.now() });
+    this.peers.set(sid, {
+      ...peer,
+      cursor,
+      selection,
+      linking,
+      seenAt: Date.now(),
+    });
     this.notify();
   }
 
-  /** Our cursor and selection, for the others (latest wins). */
+  /** Our cursor, selection and linking line, for the others (latest wins). */
   sendAwareness(update) {
     this.awarenessNext = { ...this.awarenessNext, ...update };
     if (this.awarenessTimer || !this.joined) return;

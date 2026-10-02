@@ -46,7 +46,7 @@ export function setShowCursors(show) {
 
 /**
  * Inside the diagram's SVG (so it pans and zooms with it): sends our
- * cursor and selection, draws everyone else's.
+ * cursor and selection, draws everyone else's (and their linking lines).
  */
 export default function LiveCursors() {
   const { id } = useParams();
@@ -83,6 +83,9 @@ export default function LiveCursors() {
       {peers.map((p) => (
         <Selection key={`s-${p.sid}`} peer={p} />
       ))}
+      {peers.map(
+        (p) => p.linking && <LinkingLine key={`l-${p.sid}`} peer={p} />,
+      )}
       {showCursors &&
         peers.map((p) => p.cursor && <Cursor key={`c-${p.sid}`} peer={p} />)}
     </g>
@@ -118,6 +121,19 @@ const Cursor = memo(function Cursor({ peer }) {
     </g>
   );
 });
+
+/** The relationship someone else is drawing, like our own red line. */
+function LinkingLine({ peer }) {
+  const { startX, startY, endX, endY } = peer.linking;
+  return (
+    <path
+      d={`M ${startX} ${startY} L ${endX} ${endY}`}
+      stroke={peer.color}
+      strokeWidth="2"
+      strokeDasharray="8,8"
+    />
+  );
+}
 
 /** A colored outline around what someone else has selected. */
 function Selection({ peer }) {
