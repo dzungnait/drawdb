@@ -4,7 +4,8 @@ End-to-end tests with [Playwright](https://playwright.dev) against the
 whole app: this frontend, the API from
 [drawdb-server](https://github.com/dzungnait/drawdb-server) and Postgres.
 They cover accounts, the diagram list, version history, sharing with
-people and teams, view/edit links and live editing.
+people and teams, handing a diagram over, view/edit links, live editing,
+comments and import/export.
 
 Each run signs up new accounts, so they need no clean database and can run
 side by side.

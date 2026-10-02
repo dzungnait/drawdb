@@ -1,10 +1,11 @@
 name: Browser tests
 
+# main follows the upstream repo; our work lives on the feat/* branches
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "feat/**"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feat/**"]
   workflow_dispatch:
     inputs:
       server_ref:
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/drawdb-server
-          ref: ${{ inputs.server_ref || vars.SERVER_REF || 'main' }}
+          ref: ${{ inputs.server_ref || vars.SERVER_REF || 'feat/be-port' }}
           token: ${{ secrets.SERVER_REPO_TOKEN || github.token }}
           path: drawdb-server
 

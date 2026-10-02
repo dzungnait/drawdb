@@ -50,6 +50,7 @@ import {
   getRelationshipFields,
 } from "../../utils/utils";
 import ResizeHandles from "./ResizeHandles";
+import { Slot } from "../../context/ExtensionsContext";
 
 // The heavy part of a table. It takes everything that changes while any
 // table is dragged (diagram and selection state) as plain props, so when
@@ -301,6 +302,7 @@ const TableView = memo(function TableView({
                 {tableData.name}
               </div>
               <div className="hidden group-hover:flex items-center shrink-0 pe-2">
+                <Slot name="table-actions" props={{ tableId: tableData.id }} />
                 <ButtonGroup
                   type="tertiary"
                   size="small"
@@ -599,10 +601,18 @@ const TableView = memo(function TableView({
             <span className="overflow-hidden text-ellipsis whitespace-nowrap">
               {fieldData.name}
             </span>
+            <Slot
+              name="field-marker"
+              props={{ tableId: tableData.id, fieldId: fieldData.id }}
+            />
           </div>
           <div className="text-zinc-400">
             {hoveredField === index ? (
               <div className="flex gap-1">
+                <Slot
+                  name="field-actions"
+                  props={{ tableId: tableData.id, fieldId: fieldData.id }}
+                />
                 <Button
                   theme="solid"
                   size="small"

@@ -24,6 +24,13 @@ import {
 import CollabBridge from "./collab/CollabBridge";
 import LiveCursors from "./collab/LiveCursors";
 import PresenceBar from "./collab/PresenceBar";
+import CommentBadges from "./components/CommentBadges";
+import {
+  FieldCommentButton,
+  FieldCommentMarker,
+  TableCommentButton,
+} from "./components/CanvasComments";
+import CommentsPanel, { CommentsButton } from "./components/CommentsPanel";
 import { activeSession } from "./collab/session";
 import "./i18n";
 
@@ -46,6 +53,7 @@ function EditorOverlay(props) {
       <ConflictDialog />
       <VersionPreviewBanner />
       <NoAccessOverlay />
+      <CommentsPanel />
     </>
   );
 }
@@ -57,6 +65,16 @@ const collab = {
   emitAwareness: (update) => activeSession()?.sendAwareness(update),
   isApplyingRemoteRef: { current: false },
 };
+
+/** Inside the diagram's SVG: comment bubbles, and others' cursors on top. */
+function SvgOverlay() {
+  return (
+    <>
+      <CommentBadges />
+      <LiveCursors />
+    </>
+  );
+}
 
 /**
  * Entry point of the cloud features. Plugs into the editor through the
@@ -97,7 +115,7 @@ function Extensions({ children }) {
       "canvas-overlay": <GuestOverlay />,
       // Live editing: who's here, and their cursors on the canvas
       "header-actions-start": <PresenceBar />,
-      "svg-overlay": <LiveCursors />,
+      "svg-overlay": <SvgOverlay />,
       // Signed in: new diagrams are saved to the server, and the Open
       // dialog lists them next to the ones in this browser
       ...(userId && {
@@ -105,6 +123,11 @@ function Extensions({ children }) {
         cloudCurrentUserId: userId,
         "canvas-overlay": <EditorOverlay />,
         "versions-panel": <VersionHistory />,
+        // Comments on tables and fields
+        "toolbar-end": <CommentsButton />,
+        "table-actions": <TableCommentButton />,
+        "field-actions": <FieldCommentButton />,
+        "field-marker": <FieldCommentMarker />,
         // Sharing with people replaces upstream's public gist links
         "share-modal-content": <EditorShare />,
       }),

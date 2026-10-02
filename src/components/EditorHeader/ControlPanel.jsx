@@ -2303,6 +2303,7 @@ export default function ControlPanel({
               <i className="fa-solid fa-code-branch" />
             </button>
           </Tooltip>
+          <Slot name="toolbar-end" />
           <Divider layout="vertical" margin="8px" />
           <Tooltip content={t("theme")} position="bottom">
             <button

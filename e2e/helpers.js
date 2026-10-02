@@ -74,14 +74,18 @@ export { expect };
 
 export const modal = (page) => page.locator(".semi-modal-content").last();
 
-/** Picks an option of a Semi select, retrying while its list animates in. */
+/**
+ * Picks an option (its whole text, or a RegExp) of a Semi select, retrying
+ * while its list animates in.
+ */
 export async function choose(select, label) {
   const page = select.page();
+  const text = label instanceof RegExp ? label : new RegExp(`^${label}$`);
   await expect(async () => {
     await select.click();
     await page
       .locator(".semi-select-option")
-      .filter({ hasText: new RegExp(`^${label}$`) })
+      .filter({ hasText: text })
       .last()
       .click({ timeout: 2000 });
     await expect(select).toContainText(label, { timeout: 1000 });

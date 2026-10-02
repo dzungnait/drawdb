@@ -52,8 +52,18 @@ function getSocket() {
     socket.on("peer-update", (p) => active?.setPeer(p));
     socket.on("peer-leave", ({ sid }) => active?.removePeer(sid));
     socket.on("awareness", (a) => active?.onAwareness(a));
+    socket.on("comments", ({ diagramId }) =>
+      commentListeners.forEach((fn) => fn(diagramId)),
+    );
   }
   return socket;
+}
+
+const commentListeners = new Set();
+/** Someone changed the comments of a diagram open here. */
+export function onCommentsChanged(fn) {
+  commentListeners.add(fn);
+  return () => commentListeners.delete(fn);
 }
 
 /** The diagram being edited live on this page, if any. */
