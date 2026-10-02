@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useParams } from "react-router-dom";
 import {
   useAreas,
@@ -68,6 +68,9 @@ export default function CollabBridge({ title, setTitle }) {
   };
   const localRef = useRef(local);
   localRef.current = local;
+  // Which state from the session this render includes (set together with
+  // the state, so it's rendered in the same pass)
+  const [shownRev, setShownRev] = useState(0);
 
   // Setters and the latest state, read by the session at any time
   const setters = useRef(null);
@@ -88,10 +91,16 @@ export default function CollabBridge({ title, setTitle }) {
     session.attach({
       getLocal: () => localRef.current,
       // Only what changed, so unrelated parts of the canvas don't re-render
-      setLocal: (state) => {
+      setLocal: (state, rev, current) => {
+        let changed = false;
         for (const [key, set] of Object.entries(setters.current)) {
-          if (state[key] !== localRef.current[key]) set(state[key]);
+          if (state[key] !== current[key]) {
+            set(state[key]);
+            changed = true;
+          }
         }
+        if (changed) setShownRev(rev);
+        return changed;
       },
       onRole: (role, canWrite) => {
         setOpenedRole(session.diagramId, role);
@@ -110,7 +119,7 @@ export default function CollabBridge({ title, setTitle }) {
   }, [session, setLayout]);
 
   useEffect(() => {
-    session?.localChanged();
+    session?.localChanged(shownRev);
   });
 
   // An old version shown from the history isn't an edit

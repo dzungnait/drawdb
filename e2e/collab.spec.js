@@ -100,3 +100,45 @@ test("editing together live", async ({ person }) => {
   await ada.api("DELETE", `/diagrams/${id}/members/${bob.id}`);
   await expect(bob.page.getByText("Can't open this diagram")).toBeVisible();
 });
+
+// Someone slow to render (a busy or background tab) used to send back the
+// state from before others' edits, undoing what they had just typed
+test("fast typing survives a slow collaborator", async ({ person }) => {
+  const ada = await person("Ada");
+  const bob = await person("Bob");
+  const id = await createDiagram(ada.page);
+  await ada.api("POST", `/diagrams/${id}/members`, {
+    email: bob.email,
+    role: "editor",
+  });
+  await bob.page.goto(`/editor/diagrams/${id}`);
+  await expect(canvasTables(bob.page)).toHaveCount(1);
+  const cdp = await bob.context.newCDPSession(bob.page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 8 });
+
+  // Bob keeps moving his mouse meanwhile, so his editor keeps rendering
+  let moving = true;
+  const mouse = (async () => {
+    for (let i = 0; moving; i++) {
+      await bob.page.mouse.move(500 + (i % 50) * 4, 400 + (i % 30) * 3);
+      await bob.page.waitForTimeout(30);
+    }
+  })();
+
+  await ada.page.locator(".semi-collapse-header").first().click();
+  const input = ada.page.locator(".semi-collapse-content input").first();
+  await input.click();
+  await ada.page.keyboard.press("Control+a");
+  const name = "the_quick_brown_fox_jumps_over_the_lazy_dog_" + "x".repeat(40);
+  await ada.page.keyboard.type(name, { delay: 20 });
+
+  await expect
+    .poll(async () => (await serverDiagram(ada, id)).tables[0].name, {
+      timeout: 15_000,
+    })
+    .toBe(name);
+  await ada.page.waitForTimeout(2000);
+  await expect(input).toHaveValue(name);
+  moving = false;
+  await mouse;
+});

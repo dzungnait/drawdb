@@ -30,6 +30,9 @@ export function normalize(state) {
 
 const flat = (batches) => batches.flatMap((b) => b.ops);
 
+// Numbers the states handed to the editor, across sessions on this page
+let showRev = 0;
+
 let socket = null;
 
 /** One connection per page, opened on first use. */
@@ -215,15 +218,29 @@ export class Session {
 
   /**
    * The editor's side: getLocal() returns what it shows (normalized),
-   * setLocal(state) shows a state. Until the editor shows the joined
+   * setLocal(state, rev, current) shows a state (current: what it shows
+   * now, as far as we know) and returns whether anything changed; the
+   * editor then calls localChanged(rev) once it rendered it.
+   *
+   * Until the editor shows the joined
    * state (it loads it like any diagram), nothing is read or sent.
    */
   attach(handlers) {
     this.handlers = handlers;
   }
 
-  /** Called when the editor's state changed. */
-  localChanged() {
+  /**
+   * What the editor shows. A state we asked it to show counts from then
+   * on, even before it has rendered it: reading its older state meanwhile
+   * would look like the user undoing what others just did.
+   */
+  local() {
+    return this.showing?.state ?? this.handlers.getLocal();
+  }
+
+  /** Called after the editor rendered; `rev` is the last state it shows. */
+  localChanged(rev = 0) {
+    if (this.showing && rev >= this.showing.rev) this.showing = null;
     if (this.closed || !this.joined) return;
     if (!this.ready) {
       // Give up waiting after a while: the editor then shows the live state
@@ -249,12 +266,12 @@ export class Session {
   /** Our edits the editor shows but we haven't sent yet. */
   unsent() {
     if (!this.ready || this.paused || !this.shadow) return [];
-    return diff(this.shadow, this.handlers.getLocal());
+    return diff(this.shadow, this.local());
   }
 
   flush() {
     if (!this.ready || this.paused || this.closed || !this.canWrite) return;
-    const local = this.handlers.getLocal();
+    const local = this.local();
     const ops = diff(this.shadow, local);
     if (ops.length === 0) return;
     const batch = { opId: nanoid(), ops };
@@ -283,7 +300,10 @@ export class Session {
   }
 
   show(state) {
-    this.handlers.setLocal?.(state);
+    const rev = ++showRev;
+    if (this.handlers.setLocal?.(state, rev, this.local())) {
+      this.showing = { state, rev };
+    }
   }
 
   /** Whether some of our edits aren't on the server yet. */
