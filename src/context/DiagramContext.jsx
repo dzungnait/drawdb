@@ -1,6 +1,11 @@
 import { createContext, useCallback, useState } from "react";
 import { Action, DB, ObjectType, defaultBlue } from "../data/constants";
-import { useTransform, useUndoRedo, useSelect, useCollab } from "../hooks";
+import {
+  useGetTransform,
+  useUndoRedoActions,
+  useSelect,
+  useCollab,
+} from "../hooks";
 import { Toast } from "@douyinfe/semi-ui";
 import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
@@ -14,8 +19,8 @@ export default function DiagramContextProvider({ children }) {
   const [database, setDatabaseRaw] = useState(DB.GENERIC);
   const [tables, setTables] = useState([]);
   const [relationships, setRelationships] = useState([]);
-  const { transform } = useTransform();
-  const { setUndoStack, setRedoStack } = useUndoRedo();
+  const getTransform = useGetTransform();
+  const { setUndoStack, setRedoStack } = useUndoRedoActions();
   const { selectedElement, setSelectedElement } = useSelect();
   const { emitDelta, isApplyingRemoteRef } = useCollab();
 
@@ -41,7 +46,7 @@ export default function DiagramContextProvider({ children }) {
     const newTable = {
       id,
       name: `table_${id}`,
-      ...cascadePosition(transform.pan, tables),
+      ...cascadePosition(getTransform().pan, tables),
       locked: false,
       fields: [
         {

@@ -16,7 +16,7 @@ import {
 } from "@douyinfe/semi-icons";
 import {
   useLayout,
-  useUndoRedo,
+  useUndoRedoActions,
   useSelect,
   useNotes,
   useSaveState,
@@ -37,7 +37,7 @@ function Note({ data, onPointerDown }) {
   const { t } = useTranslation();
   const { setSaveState } = useSaveState();
   const { updateNote, deleteNote } = useNotes();
-  const { setUndoStack, setRedoStack } = useUndoRedo();
+  const { setUndoStack, setRedoStack } = useUndoRedoActions();
   const { transform } = useTransform();
   const { settings } = useSettings();
   const {

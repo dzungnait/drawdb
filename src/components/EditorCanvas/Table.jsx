@@ -32,8 +32,7 @@ import {
   useSettings,
   useDiagram,
   useSelect,
-  useUndoRedo,
-  useTransform,
+  useUndoRedoActions,
 } from "../../hooks";
 import TableInfo from "../EditorSidePanel/TablesTab/TableInfo";
 import { useTranslation } from "react-i18next";
@@ -74,9 +73,8 @@ const TableView = memo(function TableView({
   const [hovered, setHovered] = useState(false);
   const [resizeEngaged, setResizeEngaged] = useState(false);
   const { layout } = useLayout();
-  const { setUndoStack, setRedoStack } = useUndoRedo();
+  const { setUndoStack, setRedoStack } = useUndoRedoActions();
   const { settings } = useSettings();
-  const { transform } = useTransform();
   const { t } = useTranslation();
   const { setSelectedElement, setBulkSelectedElements } = actions.current;
 
@@ -501,7 +499,6 @@ const TableView = memo(function TableView({
           y={tableData.y}
           width={width}
           height={height}
-          zoom={transform.zoom}
           visible={hovered}
           onResize={resizeTable}
           onResizeEnd={commitResize}

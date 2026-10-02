@@ -11,7 +11,6 @@ export default function ResizeHandles({
   y,
   width,
   height,
-  zoom,
   visible,
   onResize,
   onResizeEnd,
@@ -41,7 +40,9 @@ export default function ResizeHandles({
       width,
       clientX: e.clientX,
       pointerId: e.pointerId,
-      zoom: zoom || 1,
+      // Screen pixels per canvas unit. Read here rather than taken as a
+      // prop, so tables don't re-render on every pan and zoom.
+      zoom: e.currentTarget.getScreenCTM()?.a || 1,
     };
     setActive(side);
 

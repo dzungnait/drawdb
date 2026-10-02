@@ -1,12 +1,23 @@
-import { createContext, useCallback, useState } from "react";
+import { createContext, useCallback, useRef, useState } from "react";
 
 export const TransformContext = createContext(null);
+
+// A function returning the current transform, which never changes: for code
+// that reads it when acting (e.g. where to place a new table) and so needn't
+// re-render on every pan and zoom
+export const GetTransformContext = createContext(() => ({
+  zoom: 1,
+  pan: { x: 0, y: 0 },
+}));
 
 export default function TransformContextProvider({ children }) {
   const [transform, setTransformInternal] = useState({
     zoom: 1,
     pan: { x: 0, y: 0 },
   });
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+  const getTransform = useCallback(() => transformRef.current, []);
 
   /**
    * @type {typeof DrawDB.TransformContext["setTransform"]}
@@ -39,8 +50,10 @@ export default function TransformContextProvider({ children }) {
   );
 
   return (
-    <TransformContext.Provider value={{ transform, setTransform }}>
-      {children}
-    </TransformContext.Provider>
+    <GetTransformContext.Provider value={getTransform}>
+      <TransformContext.Provider value={{ transform, setTransform }}>
+        {children}
+      </TransformContext.Provider>
+    </GetTransformContext.Provider>
   );
 }

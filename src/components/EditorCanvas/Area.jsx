@@ -17,7 +17,7 @@ import { Tab, Action, ObjectType, State } from "../../data/constants";
 import {
   useLayout,
   useSettings,
-  useUndoRedo,
+  useUndoRedoActions,
   useSelect,
   useAreas,
   useSaveState,
@@ -268,7 +268,7 @@ function Area({
 function EditPopoverContent({ data }) {
   const [editField, setEditField] = useState({});
   const { updateArea, deleteArea } = useAreas();
-  const { setUndoStack, setRedoStack } = useUndoRedo();
+  const { setUndoStack, setRedoStack } = useUndoRedoActions();
   const { t } = useTranslation();
   const { layout } = useLayout();
   const initialColorRef = useRef(data.color);

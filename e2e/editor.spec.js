@@ -90,3 +90,41 @@ test("importing a DBML file", async ({ person }) => {
     .click();
   await expect(page.locator("#diagram foreignObject")).toHaveCount(2);
 });
+
+test("resizing a table follows the pointer at any zoom", async ({ person }) => {
+  const { page } = await person("Visitor", { signedOut: true });
+  await openNewDiagram(page);
+  await page.getByRole("button", { name: "Add table" }).click();
+  const table = page.locator("#diagram foreignObject").first();
+  const width = async () => Number(await table.getAttribute("width"));
+  const before = await width();
+
+  // Zoomed in, a canvas unit is more than a screen pixel
+  const box = await table.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down("Control");
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await expect
+    .poll(async () => (await table.boundingBox()).width / before)
+    .toBeGreaterThan(1.2);
+  const zoomed = await table.boundingBox();
+  const scale = zoomed.width / before;
+
+  await page.mouse.move(zoomed.x + 20, zoomed.y + 10);
+  const handle = page.locator('#diagram rect[style*="ew-resize"]').nth(1);
+  const h = await handle.boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 60, h.y + h.height / 2, {
+    steps: 6,
+  });
+  await page.mouse.move(h.x + h.width / 2 + 120, h.y + h.height / 2, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  expect(Math.abs((await width()) - (before + 120 / scale))).toBeLessThan(3);
+
+  await page.keyboard.press("Control+z");
+  await expect.poll(width).toBe(before);
+});

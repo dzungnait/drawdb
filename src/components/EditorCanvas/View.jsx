@@ -22,8 +22,7 @@ import {
   useDiagram,
   useSelect,
   useViews,
-  useUndoRedo,
-  useTransform,
+  useUndoRedoActions,
 } from "../../hooks";
 import ViewInfo from "../EditorSidePanel/ViewsTab/ViewInfo";
 import { useTranslation } from "react-i18next";
@@ -43,8 +42,7 @@ function View({ viewData, onPointerDown }) {
   const { database, tables } = useDiagram();
   const { views, addView, deleteView, updateView } = useViews();
   const { settings } = useSettings();
-  const { setUndoStack, setRedoStack } = useUndoRedo();
-  const { transform } = useTransform();
+  const { setUndoStack, setRedoStack } = useUndoRedoActions();
   const { t } = useTranslation();
   const {
     selectedElement,
@@ -361,7 +359,6 @@ function View({ viewData, onPointerDown }) {
           y={viewData.y}
           width={width}
           height={height}
-          zoom={transform.zoom}
           visible={hovered}
           onResize={resizeView}
           onResizeEnd={commitResize}
