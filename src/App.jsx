@@ -13,12 +13,15 @@ import MigrationBanner, { isLegacyHost } from "./components/MigrationBanner";
 import CloudProvider from "./cloud/CloudProvider";
 import { ResetPasswordPage, VerifyEmailPage } from "./cloud/pages/AuthPages";
 import DiagramsPage from "./cloud/pages/DiagramsPage";
+import TeamsPage from "./cloud/pages/TeamsPage";
 
 export default function App() {
   const routes = (
     <Routes>
       <Route path="/" element={<DiagramsPage />} />
       <Route path="/diagrams" element={<Navigate to="/" replace />} />
+      <Route path="/teams" element={<TeamsPage />} />
+      <Route path="/teams/:id" element={<TeamsPage />} />
       <Route path="/editor" element={<Editor />} />
       <Route path="/editor/diagrams/:id" element={<Editor />} />
       <Route path="/editor/templates/:id" element={<Editor />} />

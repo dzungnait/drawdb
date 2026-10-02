@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Banner,
   Button,
@@ -9,6 +9,7 @@ import {
   Modal,
   RadioGroup,
   Radio,
+  Select,
   Spin,
   Table,
   Tag,
@@ -17,18 +18,14 @@ import {
 import { IconMore, IconPlus, IconSearch } from "@douyinfe/semi-icons";
 import { useTranslation } from "react-i18next";
 import { DateTime } from "luxon";
-import { useThemedPage } from "../../hooks";
 import { databases } from "../../data/databases";
-import logo_light from "../../assets/logo_light_160.png";
-import logo_dark from "../../assets/logo_dark_160.png";
-import { useSettings } from "../../hooks";
 import { useAuth } from "../AuthContext";
 import { errorCode } from "../api";
 import { diagramsApi } from "../diagrams";
 import { errorMessage } from "../i18n";
 import { membersApi } from "../sharing";
-import AccountMenu from "../components/AccountMenu";
-import LanguageSwitch from "../components/LanguageSwitch";
+import { teamsApi } from "../teams";
+import PageLayout from "../components/PageLayout";
 import ShareDialog from "../components/ShareDialog";
 
 const ROLE_COLORS = { owner: "blue", editor: "green", viewer: "grey" };
@@ -36,10 +33,8 @@ const ROLE_COLORS = { owner: "blue", editor: "green", viewer: "grey" };
 /** Every diagram the signed-in user owns or that is shared with them. */
 export default function DiagramsPage() {
   const { t } = useTranslation();
-  const { settings } = useSettings();
   const { status, user, openDialog } = useAuth();
   const navigate = useNavigate();
-  useThemedPage();
 
   useEffect(() => {
     document.title = `${t("cloud_diagrams")} | drawDB`;
@@ -77,30 +72,7 @@ export default function DiagramsPage() {
     body = <DiagramList key={user.id} />;
   }
 
-  return (
-    <div className="min-h-screen bg-[var(--semi-color-bg-0)] text-[var(--semi-color-text-0)]">
-      <div className="py-4 px-12 sm:px-4 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Link to="/">
-            <img
-              src={settings.mode === "dark" ? logo_dark : logo_light}
-              alt="logo"
-              className="h-[40px] sm:h-[28px]"
-            />
-          </Link>
-          <div className="text-xl sm:text-base font-semibold">
-            {t("cloud_diagrams")}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <LanguageSwitch />
-          <AccountMenu variant="landing" />
-        </div>
-      </div>
-      <hr className="border-[var(--semi-color-border)]" />
-      <div className="px-12 sm:px-4 py-6 max-w-6xl mx-auto">{body}</div>
-    </div>
-  );
+  return <PageLayout>{body}</PageLayout>;
 }
 
 function DiagramList() {
@@ -111,7 +83,20 @@ function DiagramList() {
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
   const [sharing, setSharing] = useState(null);
+  const [teams, setTeams] = useState([]);
+  // ?team=<id>: diagrams shared with that team (e.g. from the Teams page)
+  const [params, setParams] = useSearchParams();
+  const team = params.get("team");
   const { user } = useAuth();
+
+  useEffect(() => {
+    teamsApi
+      .list()
+      .then(setTeams)
+      .catch(() => {});
+  }, []);
+
+  const setTeam = (id) => setParams(id ? { team: id } : {}, { replace: true });
 
   const load = useCallback(() => {
     diagramsApi
@@ -131,9 +116,10 @@ function DiagramList() {
       (d) =>
         (scope === "all" ||
           (scope === "owned" ? d.role === "owner" : d.role !== "owner")) &&
+        (!team || d.teamIds?.includes(team)) &&
         (!needle || (d.name || "").toLowerCase().includes(needle)),
     );
-  }, [items, scope, search]);
+  }, [items, scope, search, team]);
 
   const open = (d) => navigate(`/editor/diagrams/${d.diagramId}`);
   const drop = (id) =>
@@ -191,8 +177,25 @@ function DiagramList() {
             {d.role === "owner" && d.sharedWith > 0 && (
               <>
                 {" · "}
-                <i className="bi bi-people" />{" "}
+                <i className="bi bi-person" />{" "}
                 {t("cloud_shared_count", { count: d.sharedWith })}
+              </>
+            )}
+            {d.role === "owner" && d.sharedWithTeams > 0 && (
+              <>
+                {" · "}
+                <i className="bi bi-people" />{" "}
+                {t("cloud_shared_teams_count", { count: d.sharedWithTeams })}
+              </>
+            )}
+            {d.role !== "owner" && d.teamIds?.length > 0 && (
+              <>
+                {" · "}
+                <i className="bi bi-people" />{" "}
+                {teams
+                  .filter((tm) => d.teamIds.includes(tm.id))
+                  .map((tm) => tm.name)
+                  .join(", ")}
               </>
             )}
           </div>
@@ -288,6 +291,18 @@ function DiagramList() {
           <Radio value="owned">{t("cloud_owned_by_me")}</Radio>
           <Radio value="shared">{t("cloud_shared_with_me")}</Radio>
         </RadioGroup>
+        {teams.length > 0 && (
+          <Select
+            value={team ?? ""}
+            onChange={setTeam}
+            optionList={[
+              { value: "", label: t("cloud_all_teams") },
+              ...teams.map((tm) => ({ value: tm.id, label: tm.name })),
+            ]}
+            prefix={<i className="bi bi-people ms-2" />}
+            style={{ width: 200 }}
+          />
+        )}
         <Input
           prefix={<IconSearch />}
           placeholder={t("cloud_search")}
@@ -335,11 +350,15 @@ function DiagramList() {
         {sharing && (
           <ShareDialog
             diagramId={sharing.diagramId}
-            onChange={({ members }) =>
+            onChange={({ members, teams: teamsShared }) =>
               setItems((prev) =>
                 prev.map((d) =>
                   d.diagramId === sharing.diagramId
-                    ? { ...d, sharedWith: members.length }
+                    ? {
+                        ...d,
+                        sharedWith: members.length,
+                        sharedWithTeams: teamsShared?.length ?? 0,
+                      }
                     : d,
                 ),
               )

@@ -75,6 +75,12 @@ export default function AccountMenu({ variant = "editor" }) {
             {t("cloud_my_diagrams")}
           </Dropdown.Item>
           <Dropdown.Item
+            icon={<i className="bi bi-people" />}
+            onClick={() => navigate("/teams")}
+          >
+            {t("cloud_teams")}
+          </Dropdown.Item>
+          <Dropdown.Item
             icon={<i className="fa-regular fa-trash-can" />}
             onClick={() => openDialog("trash")}
           >

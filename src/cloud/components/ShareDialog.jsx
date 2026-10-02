@@ -20,6 +20,7 @@ import { errorMessage } from "../i18n";
 import { membersApi } from "../sharing";
 import { UserAvatar } from "./AccountMenu";
 import LinkSharing from "./LinkSharing";
+import TeamSharing from "./TeamSharing";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -260,6 +261,18 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
           </div>
         ))}
       </div>
+
+      <TeamSharing
+        diagramId={diagramId}
+        teams={data.teams ?? []}
+        isOwner={isOwner}
+        onChange={() =>
+          membersApi
+            .list(diagramId)
+            .then(update)
+            .catch(() => {})
+        }
+      />
 
       {isOwner && <LinkSharing diagramId={diagramId} />}
 
