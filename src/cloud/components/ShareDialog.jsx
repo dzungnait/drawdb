@@ -113,6 +113,22 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
       });
     });
 
+  const makeOwner = (member) => {
+    const name = member.name || member.email;
+    Modal.confirm({
+      title: t("cloud_make_owner"),
+      content: t("cloud_make_owner_confirm", { name }),
+      okText: t("cloud_make_owner"),
+      cancelText: t("cancel"),
+      centered: true,
+      onOk: () =>
+        run(member.id, async () => {
+          update(await membersApi.transferOwnership(diagramId, member.id));
+          Toast.success(t("cloud_owner_changed", { name }));
+        }),
+    });
+  };
+
   const cancelInvite = (invite) =>
     run(`invite:${invite.id}`, async () =>
       update(await membersApi.cancelInvite(diagramId, invite.id)),
@@ -158,6 +174,11 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
     value: r,
     label: t(`cloud_role.${r}`),
   }));
+  // For people with access, the owner can also hand the diagram over
+  const memberOptions = [
+    ...roleOptions,
+    { value: "owner", label: t("cloud_make_owner") },
+  ];
 
   return (
     <div className="pb-2">
@@ -211,9 +232,11 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
                     size="small"
                     value={m.role}
                     disabled={busy === m.id}
-                    onChange={(next) => changeRole(m, next)}
-                    optionList={roleOptions}
-                    style={{ width: 150 }}
+                    onChange={(next) =>
+                      next === "owner" ? makeOwner(m) : changeRole(m, next)
+                    }
+                    optionList={memberOptions}
+                    style={{ width: 170 }}
                   />
                   <Tooltip content={t("cloud_remove_access")}>
                     <Button

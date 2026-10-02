@@ -444,18 +444,21 @@ function DiagramList() {
         {sharing && (
           <ShareDialog
             diagramId={sharing.diagramId}
-            onChange={({ members, teams: teamsShared }) =>
-              setItems((prev) =>
-                prev.map((d) =>
-                  d.diagramId === sharing.diagramId
-                    ? {
-                        ...d,
-                        sharedWith: members.length,
-                        sharedWithTeams: teamsShared?.length ?? 0,
-                      }
-                    : d,
-                ),
-              )
+            onChange={({ role, members, teams: teamsShared }) =>
+              // Handed over to someone else: the list shows it differently
+              role !== sharing.role
+                ? load()
+                : setItems((prev) =>
+                    prev.map((d) =>
+                      d.diagramId === sharing.diagramId
+                        ? {
+                            ...d,
+                            sharedWith: members.length,
+                            sharedWithTeams: teamsShared?.length ?? 0,
+                          }
+                        : d,
+                    ),
+                  )
             }
             onLeft={() => {
               drop(sharing.diagramId);

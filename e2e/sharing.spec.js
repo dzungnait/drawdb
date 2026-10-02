@@ -112,3 +112,56 @@ test("sharing a diagram with people as editors or viewers", async ({
   await expect(editor.page.getByText("You left the diagram")).toBeVisible();
   await expect(rows(editor.page).locator(".font-medium")).toHaveCount(0);
 });
+
+test("handing a diagram over to someone else", async ({ person }) => {
+  const owner = await person("Owner");
+  const bob = await person("Bob");
+  const id = await createDiagram(owner.page);
+  await owner.api("POST", `/diagrams/${id}/members`, {
+    email: bob.email,
+    role: "editor",
+  });
+  await bob.page.goto(`/editor/diagrams/${id}`);
+  await expect(canvasTables(bob.page)).toHaveCount(1);
+
+  // From the share dialog on the home page
+  const { page } = owner;
+  await page.goto("/");
+  await rows(page).first().locator("button").click();
+  await page
+    .locator(".semi-dropdown-item")
+    .filter({ hasText: /^Share$/ })
+    .click();
+  const bobRow = modal(page)
+    .locator(".flex.items-center")
+    .filter({ hasText: bob.email })
+    .last();
+  // The select keeps showing "Editor" and asks to confirm instead
+  await expect(async () => {
+    await bobRow.locator(".semi-select").click();
+    await page
+      .locator(".semi-select-option")
+      .filter({ hasText: /^Make owner$/ })
+      .click({ timeout: 2000 });
+    await expect(page.getByText("will own this diagram")).toBeVisible({
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 10_000 });
+  await modal(page)
+    .locator("button")
+    .filter({ hasText: /^Make owner$/ })
+    .click();
+  await expect(page.getByText("Bob now owns this diagram")).toBeVisible();
+  // Now only an editor here: no sharing controls
+  await expect(
+    page.locator(".semi-modal-content input[type=email]"),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(rows(page)).toContainText("Bob");
+
+  // Bob owns it, also in the editor he has open
+  await bob.page.getByRole("button", { name: "Share" }).first().click();
+  await expect(modal(bob.page).locator("input[type=email]")).toBeVisible();
+  await bob.page.goto("/");
+  await expect(rows(bob.page)).toContainText("Owner");
+});

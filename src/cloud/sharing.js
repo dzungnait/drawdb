@@ -11,6 +11,9 @@ export const membersApi = {
   changeRole: (id, userId, role) =>
     api.patch(`${base(id)}/members/${userId}`, { role }).then((r) => r.data),
   remove: (id, userId) => api.delete(`${base(id)}/members/${userId}`),
+  /** Makes a member the owner; returns the updated list. */
+  transferOwnership: (id, userId) =>
+    api.post(`${base(id)}/owner`, { userId }).then((r) => r.data),
   cancelInvite: (id, inviteId) =>
     api.delete(`${base(id)}/invites/${inviteId}`).then((r) => r.data),
 };
