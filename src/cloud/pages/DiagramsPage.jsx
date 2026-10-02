@@ -315,20 +315,35 @@ function DiagramList() {
             position="bottomRight"
             clickToHide
             render={
-              <Dropdown.Menu>
-                <Dropdown.Item onClick={() => open(d)}>
+              // The same width on every row, whatever the last item says
+              <Dropdown.Menu style={{ minWidth: 180 }}>
+                <Dropdown.Item
+                  icon={<i className="bi bi-box-arrow-up-right" />}
+                  onClick={() => open(d)}
+                >
                   {t("cloud_open")}
                 </Dropdown.Item>
-                <Dropdown.Item onClick={() => setSharing(d)}>
+                <Dropdown.Item
+                  icon={<i className="bi bi-share" />}
+                  onClick={() => setSharing(d)}
+                >
                   {t("cloud_share")}
                 </Dropdown.Item>
                 <Dropdown.Divider />
                 {d.role === "owner" ? (
-                  <Dropdown.Item type="danger" onClick={() => moveToTrash(d)}>
+                  <Dropdown.Item
+                    type="danger"
+                    icon={<i className="bi bi-trash" />}
+                    onClick={() => moveToTrash(d)}
+                  >
                     {t("cloud_move_to_trash")}
                   </Dropdown.Item>
                 ) : (
-                  <Dropdown.Item type="danger" onClick={() => leave(d)}>
+                  <Dropdown.Item
+                    type="danger"
+                    icon={<i className="bi bi-box-arrow-left" />}
+                    onClick={() => leave(d)}
+                  >
                     {t("cloud_leave")}
                   </Dropdown.Item>
                 )}
