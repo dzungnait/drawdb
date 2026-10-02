@@ -128,3 +128,27 @@ test("resizing a table follows the pointer at any zoom", async ({ person }) => {
   await page.keyboard.press("Control+z");
   await expect.poll(width).toBe(before);
 });
+
+test("a table's header menu stays open when the pointer leaves the table", async ({
+  person,
+}) => {
+  const { page } = await person("Visitor", { signedOut: true });
+  await openNewDiagram(page);
+  await page.getByRole("button", { name: "Add table" }).click();
+  const tables = page.locator("#diagram foreignObject");
+  // Its buttons are only there while hovering it
+  await expect(tables.first().getByTitle("See more")).toHaveCount(0);
+  await tables.first().locator("div").first().hover();
+  await tables.first().getByTitle("See more").click();
+
+  const duplicate = page
+    .locator(".semi-popover-content")
+    .getByRole("button", { name: "Duplicate" });
+  await expect(duplicate).toBeVisible();
+  // Away from the table, onto an empty spot of the canvas
+  await page.mouse.move(40, 700, { steps: 8 });
+  await page.waitForTimeout(300);
+  await expect(duplicate).toBeVisible();
+  await duplicate.click();
+  await expect(tables).toHaveCount(2);
+});

@@ -62,6 +62,8 @@ import { db } from "../../data/db";
 import {
   useLayout,
   useSettings,
+  useGetTransform,
+  useSetTransform,
   useTransform,
   useDiagram,
   useUndoRedo,
@@ -184,7 +186,8 @@ export default function ControlPanel({
   // Pasting the same clipboard again keeps moving the copies further out
   const pasteRepeatRef = useRef({ text: null, count: 0 });
   const hasMultiSelection = bulkSelectedElements.length > 1;
-  const { transform, setTransform } = useTransform();
+  const getTransform = useGetTransform();
+  const setTransform = useSetTransform();
   const { t, i18n } = useTranslation();
   const { version, gistId, setGistId } = useContext(IdContext);
   const isTemplate = useMatch("/editor/templates/:id");
@@ -1145,8 +1148,8 @@ export default function ControlPanel({
         notes,
         areas,
         views,
-        pan: transform.pan,
-        zoom: transform.zoom,
+        pan: getTransform().pan,
+        zoom: getTransform().zoom,
         ...(databases[database].hasEnums && { enums }),
         ...(databases[database].hasTypes && { types }),
       };
@@ -1205,8 +1208,8 @@ export default function ControlPanel({
       notes,
       areas,
       views,
-      pan: transform.pan,
-      zoom: transform.zoom,
+      pan: getTransform().pan,
+      zoom: getTransform().zoom,
       ...(databases[database].hasEnums && { enums }),
       ...(databases[database].hasTypes && { types }),
     };
@@ -2185,7 +2188,7 @@ export default function ControlPanel({
           >
             <div className="py-1 px-2 hover-2 rounded-sm flex items-center justify-center">
               <div className="w-[40px]">
-                {Math.floor(transform.zoom * 100)}%
+                <ZoomLevel />
               </div>
               <div>
                 <IconCaretdown />
@@ -2556,4 +2559,10 @@ export default function ControlPanel({
       </nav>
     );
   }
+}
+
+// On its own, so the rest of the header doesn't re-render on every zoom
+function ZoomLevel() {
+  const { transform } = useTransform();
+  return `${Math.floor(transform.zoom * 100)}%`;
 }

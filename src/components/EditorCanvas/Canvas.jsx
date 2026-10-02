@@ -833,7 +833,11 @@ export default function Canvas() {
               rightClickPanned.current = false;
             }
           }}
-          className="absolute w-full h-full touch-none"
+          // While panning, what's drawn ignores the pointer: hovering the
+          // tables passing under it re-rendered them
+          className={`absolute w-full h-full touch-none ${
+            panning.isPanning ? "[&_*]:pointer-events-none" : ""
+          }`}
           viewBox={`${viewBox.left} ${viewBox.top} ${viewBox.width} ${viewBox.height}`}
         >
           {settings.showGrid && (

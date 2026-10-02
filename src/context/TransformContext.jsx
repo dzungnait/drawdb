@@ -1,14 +1,14 @@
-import { createContext, useCallback, useRef, useState } from "react";
+import { createContext, useCallback, useMemo, useRef, useState } from "react";
 
 export const TransformContext = createContext(null);
 
-// A function returning the current transform, which never changes: for code
-// that reads it when acting (e.g. where to place a new table) and so needn't
-// re-render on every pan and zoom
-export const GetTransformContext = createContext(() => ({
-  zoom: 1,
-  pan: { x: 0, y: 0 },
-}));
+// getTransform() and setTransform, which never change: for code that only
+// reads the transform when acting (e.g. where to place a new table, or what
+// to save) and so needn't re-render on every pan and zoom
+export const TransformActionsContext = createContext({
+  getTransform: () => ({ zoom: 1, pan: { x: 0, y: 0 } }),
+  setTransform: () => {},
+});
 
 export default function TransformContextProvider({ children }) {
   const [transform, setTransformInternal] = useState({
@@ -49,11 +49,16 @@ export default function TransformContextProvider({ children }) {
     [setTransformInternal],
   );
 
+  const actions = useMemo(
+    () => ({ getTransform, setTransform }),
+    [getTransform, setTransform],
+  );
+
   return (
-    <GetTransformContext.Provider value={getTransform}>
+    <TransformActionsContext.Provider value={actions}>
       <TransformContext.Provider value={{ transform, setTransform }}>
         {children}
       </TransformContext.Provider>
-    </GetTransformContext.Provider>
+    </TransformActionsContext.Provider>
   );
 }

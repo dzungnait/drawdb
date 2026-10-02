@@ -33,6 +33,7 @@ import {
   resolveViewColumns,
 } from "../../utils/views";
 import ResizeHandles from "./ResizeHandles";
+import Shadow from "./Shadow";
 
 // Memoized: the canvas re-renders on every pointer move
 function View({ viewData, onPointerDown }) {
@@ -196,13 +197,14 @@ function View({ viewData, onPointerDown }) {
 
   return (
     <>
+      <Shadow x={viewData.x} y={viewData.y} width={width} height={height} />
       <foreignObject
         key={viewData.id}
         x={viewData.x}
         y={viewData.y}
         width={width}
         height={height}
-        className="group drop-shadow-lg rounded-md cursor-move"
+        className="group rounded-md cursor-move"
         onPointerDown={() => onPointerDown(viewData)}
         onPointerEnter={(e) => e.isPrimary && setHovered(true)}
         onPointerLeave={(e) => e.isPrimary && setHovered(false)}

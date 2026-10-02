@@ -49,6 +49,7 @@ import {
   getRelationshipFields,
 } from "../../utils/utils";
 import ResizeHandles from "./ResizeHandles";
+import Shadow from "./Shadow";
 import { Slot } from "../../context/ExtensionsContext";
 
 // The heavy part of a table. It takes everything that changes while any
@@ -71,6 +72,7 @@ const TableView = memo(function TableView({
 }) {
   const [hoveredField, setHoveredField] = useState(null);
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [resizeEngaged, setResizeEngaged] = useState(false);
   const { layout } = useLayout();
   const { setUndoStack, setRedoStack } = useUndoRedoActions();
@@ -253,13 +255,19 @@ const TableView = memo(function TableView({
 
   return (
     <>
+      <Shadow
+        x={tableData.x}
+        y={tableData.y}
+        width={width}
+        height={height}
+      />
       <foreignObject
         key={tableData.id}
         x={tableData.x}
         y={tableData.y}
         width={width}
         height={height}
-        className="group drop-shadow-lg rounded-md cursor-move"
+        className="group rounded-md cursor-move"
         onPointerDown={() => onPointerDown(tableData)}
         onPointerEnter={(e) => e.isPrimary && setHovered(true)}
         onPointerLeave={(e) => e.isPrimary && setHovered(false)}
@@ -299,104 +307,108 @@ const TableView = memo(function TableView({
               <div className="px-3 overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex-1">
                 {tableData.name}
               </div>
-              <div className="hidden group-hover:flex items-center shrink-0 pe-2">
-                <Slot name="table-actions" props={{ tableId: tableData.id }} />
-                <ButtonGroup
-                  type="tertiary"
-                  size="small"
-                  aria-label={t("table_actions")}
-                >
-                  <Button
-                    size="small"
+              {/* Only while hovered: a large diagram has hundreds of these */}
+              {(hovered || menuOpen) && (
+                <div className="flex items-center shrink-0 pe-2">
+                  <Slot name="table-actions" props={{ tableId: tableData.id }} />
+                  <ButtonGroup
                     type="tertiary"
-                    title={tableData.locked ? t("unlock_table") : t("lock_table")}
-                    icon={
-                      tableData.locked ? (
-                        <IconLock size="small" />
-                      ) : (
-                        <IconUnlock size="small" />
-                      )
-                    }
-                    disabled={layout.readOnly}
-                    onClick={lockUnlockTable}
-                  />
-                  <Button
                     size="small"
-                    type="tertiary"
-                    icon={
-                      tableData.collapsed ? (
-                        <IconChevronDown size="small" />
-                      ) : (
-                        <IconChevronUp size="small" />
-                      )
-                    }
-                    disabled={layout.readOnly}
-                    aria-label={
-                      tableData.collapsed
-                        ? t("expand_unlinked_columns")
-                        : t("collapse_unlinked_columns")
-                    }
-                    title={
-                      tableData.collapsed
-                        ? t("expand_unlinked_columns")
-                        : t("collapse_unlinked_columns")
-                    }
-                    onClick={toggleTableCollapse}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  />
-                  <Popover
-                    key={tableData.id}
-                    content={
-                      <div className="popover-theme flex flex-col py-1 min-w-[160px]">
-                        <Button
-                          icon={<IconEditStroked />}
-                          type="tertiary"
-                          theme="borderless"
-                          block
-                          style={{ justifyContent: "flex-start" }}
-                          onClick={openEditor}
-                        >
-                          {t("edit")}
-                        </Button>
-                        <Button
-                          icon={<IconCopyStroked />}
-                          type="tertiary"
-                          theme="borderless"
-                          block
-                          style={{ justifyContent: "flex-start" }}
-                          onClick={duplicateTable}
-                          disabled={layout.readOnly}
-                        >
-                          {t("duplicate")}
-                        </Button>
-                        <Divider className="!my-1" />
-                        <Button
-                          icon={<IconDeleteStroked />}
-                          type="danger"
-                          theme="borderless"
-                          block
-                          style={{ justifyContent: "flex-start" }}
-                          onClick={() => actions.current.deleteTable(tableData.id)}
-                          disabled={layout.readOnly}
-                        >
-                          {t("delete")}
-                        </Button>
-                      </div>
-                    }
-                    position="rightTop"
-                    style={{ padding: 8 }}
-                    showArrow
-                    trigger="click"
+                    aria-label={t("table_actions")}
                   >
                     <Button
                       size="small"
                       type="tertiary"
-                      icon={<IconMore size="small" />}
-                      title={t("see_more")}
+                      title={tableData.locked ? t("unlock_table") : t("lock_table")}
+                      icon={
+                        tableData.locked ? (
+                          <IconLock size="small" />
+                        ) : (
+                          <IconUnlock size="small" />
+                        )
+                      }
+                      disabled={layout.readOnly}
+                      onClick={lockUnlockTable}
                     />
-                  </Popover>
-                </ButtonGroup>
-              </div>
+                    <Button
+                      size="small"
+                      type="tertiary"
+                      icon={
+                        tableData.collapsed ? (
+                          <IconChevronDown size="small" />
+                        ) : (
+                          <IconChevronUp size="small" />
+                        )
+                      }
+                      disabled={layout.readOnly}
+                      aria-label={
+                        tableData.collapsed
+                          ? t("expand_unlinked_columns")
+                          : t("collapse_unlinked_columns")
+                      }
+                      title={
+                        tableData.collapsed
+                          ? t("expand_unlinked_columns")
+                          : t("collapse_unlinked_columns")
+                      }
+                      onClick={toggleTableCollapse}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                    <Popover
+                      key={tableData.id}
+                      content={
+                        <div className="popover-theme flex flex-col py-1 min-w-[160px]">
+                          <Button
+                            icon={<IconEditStroked />}
+                            type="tertiary"
+                            theme="borderless"
+                            block
+                            style={{ justifyContent: "flex-start" }}
+                            onClick={openEditor}
+                          >
+                            {t("edit")}
+                          </Button>
+                          <Button
+                            icon={<IconCopyStroked />}
+                            type="tertiary"
+                            theme="borderless"
+                            block
+                            style={{ justifyContent: "flex-start" }}
+                            onClick={duplicateTable}
+                            disabled={layout.readOnly}
+                          >
+                            {t("duplicate")}
+                          </Button>
+                          <Divider className="!my-1" />
+                          <Button
+                            icon={<IconDeleteStroked />}
+                            type="danger"
+                            theme="borderless"
+                            block
+                            style={{ justifyContent: "flex-start" }}
+                            onClick={() => actions.current.deleteTable(tableData.id)}
+                            disabled={layout.readOnly}
+                          >
+                            {t("delete")}
+                          </Button>
+                        </div>
+                      }
+                      position="rightTop"
+                      style={{ padding: 8 }}
+                      showArrow
+                      trigger="click"
+                      onVisibleChange={setMenuOpen}
+                    >
+                      <Button
+                        size="small"
+                        type="tertiary"
+                        icon={<IconMore size="small" />}
+                        title={t("see_more")}
+                      />
+                    </Popover>
+                  </ButtonGroup>
+                </div>
+              )}
             </div>
             {tableData.comment && settings.showComments && (
               <div className="text-xs px-3 line-clamp-5">
