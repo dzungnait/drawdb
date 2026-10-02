@@ -550,7 +550,7 @@ export default function WorkSpace({ forcedDiagramId } = {}) {
           <CanvasContextProvider className="h-full w-full">
             <Canvas saveState={saveState} setSaveState={setSaveState} />
           </CanvasContextProvider>
-          <Slot name="canvas-overlay" />
+          <Slot name="canvas-overlay" props={{ title, setTitle }} />
           {layout.toolbar && (
             <div
               ref={setToolbarContainer}

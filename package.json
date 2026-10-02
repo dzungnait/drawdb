@@ -38,6 +38,7 @@
     "react-hotkeys-hook": "^4.4.1",
     "react-i18next": "^14.1.1",
     "react-router-dom": "^7.18.2",
+    "socket.io-client": "^4.8.4",
     "usehooks-ts": "^3.1.0",
     "uuid": "^14.0.1"
   },

@@ -6,6 +6,7 @@ import i18n from "../i18n/i18n";
 import { api, errorCode } from "./api";
 import { errorMessage } from "./i18n";
 import { isPreviewing, previewStore } from "./preview";
+import { activeSession, closeAllSessions, openSession } from "./collab/session";
 
 export const diagramsApi = {
   list: (scope) =>
@@ -269,7 +270,33 @@ export function adoptDiagram(diagram) {
 
 /** Unsaved changes in any open diagram (for the before-unload prompt). */
 export const hasUnsavedChanges = () =>
-  conflicts.size > 0 || [...queues.values()].some((q) => q.busy);
+  conflicts.size > 0 ||
+  [...queues.values()].some((q) => q.busy) ||
+  Boolean(activeSession()?.hasUnsynced());
+
+/** Whether the diagram is being edited live on this page. */
+export const isLive = (id) => {
+  const session = activeSession();
+  return Boolean(session && session.diagramId === id && session.joined);
+};
+
+/** The live session saved the diagram: later saves (if it ends) build on it. */
+export function markLiveSaved(id, version) {
+  versions.set(id, version);
+  const session = activeSession();
+  if (session?.diagramId === id)
+    savedKeys.set(id, contentKey(session.confirmed));
+}
+
+/** Access was taken away while the diagram was open. */
+export const markNoAccess = (id) =>
+  setOpened(id, { status: "missing", code: "diagram_not_found" });
+
+export function setOpenedRole(id, role) {
+  const info = opened.get(id);
+  if (info?.status === "ok" && info.role !== role)
+    setOpened(id, { ...info, role });
+}
 
 const isLocal = async (id) =>
   Boolean(await db.diagrams.where("diagramId").equals(id).first());
@@ -280,6 +307,8 @@ export const cloudHooks = {
     const id = payload.diagramId;
     // An old version is on screen, not the diagram
     if (isPreviewing(id)) return;
+    // Edited live: changes go through the session, not saves
+    if (isLive(id)) return;
     // Diagrams stored in this browser keep being saved here (e.g. Ctrl+S)
     if (!isNew && !versions.has(id) && (await isLocal(id))) {
       await db.diagrams
@@ -311,6 +340,14 @@ export const cloudHooks = {
       versions.set(id, diagram.version);
       savedKeys.set(id, contentKey(diagram));
       conflicts.delete(id);
+      // Join live editing and start from its state, which may include
+      // edits not saved yet. Without it, saving works as before.
+      const live = await openSession(id, linkTokens.get(id) ?? null);
+      if (live) {
+        versions.set(id, live.version);
+        savedKeys.set(id, contentKey(live.state));
+        return { ...diagram, ...live.state, ...readViewport(id) };
+      }
       return { ...diagram, ...readViewport(id) };
     } catch (e) {
       const code = errorCode(e);
@@ -377,6 +414,7 @@ export function resetCloudState() {
   savedKeys.clear();
   conflicts.clear();
   queues.clear();
+  closeAllSessions();
   opened = new Map();
   openedListeners.forEach((fn) => fn());
   previewStore.set(null);

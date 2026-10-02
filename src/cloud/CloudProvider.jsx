@@ -20,7 +20,33 @@ import {
   loadWithLink,
   resetCloudState,
 } from "./diagrams";
+import CollabBridge from "./collab/CollabBridge";
+import LiveCursors from "./collab/LiveCursors";
+import PresenceBar from "./collab/PresenceBar";
 import "./i18n";
+
+/** Over the canvas when signed out: share links, live view-only. */
+function GuestOverlay(props) {
+  return (
+    <>
+      <CollabBridge {...props} />
+      <SignInToOpenOverlay />
+      <SignInToEditBanner />
+    </>
+  );
+}
+
+/** Over the canvas when signed in. */
+function EditorOverlay(props) {
+  return (
+    <>
+      <CollabBridge {...props} />
+      <ConflictDialog />
+      <VersionPreviewBanner />
+      <NoAccessOverlay />
+    </>
+  );
+}
 
 /**
  * Entry point of the cloud features. Plugs into the editor through the
@@ -58,24 +84,16 @@ function Extensions({ children }) {
       // Signed out: share links still open diagrams (view only); other
       // links to someone's diagram ask to sign in
       cloudLoad: loadWithLink,
-      "canvas-overlay": (
-        <>
-          <SignInToOpenOverlay />
-          <SignInToEditBanner />
-        </>
-      ),
+      "canvas-overlay": <GuestOverlay />,
+      // Live editing: who's here, and their cursors on the canvas
+      "header-actions-start": <PresenceBar />,
+      "svg-overlay": <LiveCursors />,
       // Signed in: new diagrams are saved to the server, and the Open
       // dialog lists them next to the ones in this browser
       ...(userId && {
         ...cloudHooks,
         cloudCurrentUserId: userId,
-        "canvas-overlay": (
-          <>
-            <ConflictDialog />
-            <VersionPreviewBanner />
-            <NoAccessOverlay />
-          </>
-        ),
+        "canvas-overlay": <EditorOverlay />,
         "versions-panel": <VersionHistory />,
         // Sharing with people replaces upstream's public gist links
         "share-modal-content": <EditorShare />,
