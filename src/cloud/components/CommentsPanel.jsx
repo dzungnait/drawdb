@@ -119,13 +119,23 @@ function Threads({ diagramId, panel }) {
           type="button"
           value={show}
           onChange={(e) => setShow(e.target.value)}
+          // Stays on one line; a long table name gets cut instead
+          className="shrink-0 whitespace-nowrap"
         >
           <Radio value="open">{t("cloud_comments_open")}</Radio>
           <Radio value="resolved">{t("cloud_comments_resolved")}</Radio>
         </RadioGroup>
         {tableId && (
-          <Tag closable onClose={showAllComments} size="large">
-            {table ? table.name : t("cloud_comment_deleted_table")}
+          <Tag
+            closable
+            onClose={showAllComments}
+            size="large"
+            className="min-w-0"
+            style={{ maxWidth: "100%" }}
+          >
+            <span className="truncate" title={table ? table.name : undefined}>
+              {table ? table.name : t("cloud_comment_deleted_table")}
+            </span>
           </Tag>
         )}
       </div>
