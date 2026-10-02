@@ -29,6 +29,48 @@ import PageLayout from "../components/PageLayout";
 import ShareDialog from "../components/ShareDialog";
 
 const ROLE_COLORS = { owner: "blue", editor: "green", viewer: "grey" };
+const ROLE_RANK = { owner: 0, editor: 1, viewer: 2 };
+
+// The list's sort column and direction, remembered in this browser
+const SORT_KEY = "drawdb:diagrams-sort";
+const DEFAULT_SORT = { by: "lastModified", order: "descend" };
+
+function readSort() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SORT_KEY));
+    return saved?.by && saved?.order ? saved : DEFAULT_SORT;
+  } catch {
+    return DEFAULT_SORT;
+  }
+}
+
+function saveSort(sort) {
+  try {
+    localStorage.setItem(SORT_KEY, JSON.stringify(sort));
+  } catch {
+    // Only not remembered
+  }
+}
+
+const compareText = (a, b) =>
+  (a || "").localeCompare(b || "", undefined, { sensitivity: "base" });
+const ownerName = (d) => d.owner?.username || d.owner?.email || "";
+const databaseName = (d) => databases[d.database]?.name ?? d.database ?? "";
+
+/** Ascending comparisons per column; the table flips them for descending. */
+const SORTERS = {
+  name: (a, b) => compareText(a.name, b.name),
+  // Mine first, then by owner
+  owner: (a, b) =>
+    (a.role === "owner") !== (b.role === "owner")
+      ? a.role === "owner"
+        ? -1
+        : 1
+      : compareText(ownerName(a), ownerName(b)),
+  role: (a, b) => ROLE_RANK[a.role] - ROLE_RANK[b.role],
+  lastModified: (a, b) =>
+    Date.parse(a.lastModified) - Date.parse(b.lastModified),
+};
 
 /** Every diagram the signed-in user owns or that is shared with them. */
 export default function DiagramsPage() {
@@ -82,6 +124,8 @@ function DiagramList() {
   const [error, setError] = useState(null);
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
+  const [database, setDatabase] = useState("");
+  const [sort, setSort] = useState(readSort);
   const [sharing, setSharing] = useState(null);
   const [teams, setTeams] = useState([]);
   // ?team=<id>: diagrams shared with that team (e.g. from the Teams page)
@@ -110,16 +154,44 @@ function DiagramList() {
 
   useEffect(load, [load]);
 
+  // Databases the user has diagrams in, for the filter
+  const usedDatabases = useMemo(
+    () =>
+      [...new Set((items ?? []).map((d) => d.database))]
+        .map((value) => ({ value, label: databaseName({ database: value }) }))
+        .sort((a, b) => compareText(a.label, b.label)),
+    [items],
+  );
+
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase();
+    const matches = (d) =>
+      [d.name, ownerName(d), d.owner?.email, databaseName(d)].some((text) =>
+        (text || "").toLowerCase().includes(needle),
+      );
     return (items ?? []).filter(
       (d) =>
         (scope === "all" ||
           (scope === "owned" ? d.role === "owner" : d.role !== "owner")) &&
         (!team || d.teamIds?.includes(team)) &&
-        (!needle || (d.name || "").toLowerCase().includes(needle)),
+        (!database || d.database === database) &&
+        (!needle || matches(d)),
     );
-  }, [items, scope, search, team]);
+  }, [items, scope, search, team, database]);
+
+  const sortable = (key) => ({
+    sorter: SORTERS[key],
+    sortOrder: sort.by === key ? sort.order : false,
+  });
+  const onSortChange = ({ sorter }) => {
+    if (!sorter) return;
+    // Clearing a column's sort goes back to the newest first
+    const next = sorter.sortOrder
+      ? { by: sorter.dataIndex, order: sorter.sortOrder }
+      : DEFAULT_SORT;
+    setSort(next);
+    saveSort(next);
+  };
 
   const open = (d) => navigate(`/editor/diagrams/${d.diagramId}`);
   const drop = (id) =>
@@ -167,6 +239,7 @@ function DiagramList() {
     {
       title: t("cloud_col_name"),
       dataIndex: "name",
+      ...sortable("name"),
       render: (_, d) => (
         <div className="min-w-0">
           <div className="font-medium truncate">
@@ -206,6 +279,7 @@ function DiagramList() {
       title: t("cloud_col_owner"),
       dataIndex: "owner",
       width: 200,
+      ...sortable("owner"),
       render: (owner, d) =>
         d.role === "owner" ? (
           t("cloud_you")
@@ -217,6 +291,7 @@ function DiagramList() {
       title: t("cloud_col_access"),
       dataIndex: "role",
       width: 160,
+      ...sortable("role"),
       render: (role) => (
         <Tag color={ROLE_COLORS[role]}>{t(`cloud_role.${role}`)}</Tag>
       ),
@@ -225,6 +300,7 @@ function DiagramList() {
       title: t("cloud_col_modified"),
       dataIndex: "lastModified",
       width: 190,
+      ...sortable("lastModified"),
       render: (date) =>
         DateTime.fromISO(date).setLocale(i18n.language).toRelative(),
     },
@@ -272,7 +348,7 @@ function DiagramList() {
   ];
 
   const emptyText =
-    items?.length && search.trim()
+    items?.length && (search.trim() || database || team)
       ? t("cloud_no_match")
       : scope === "shared"
         ? t("cloud_no_shared")
@@ -311,6 +387,23 @@ function DiagramList() {
           showClear
           style={{ width: 260 }}
         />
+        {usedDatabases.length > 1 && (
+          <Select
+            value={database}
+            onChange={setDatabase}
+            optionList={[
+              { value: "", label: t("cloud_all_databases") },
+              ...usedDatabases,
+            ]}
+            prefix={<i className="bi bi-database ms-2" />}
+            style={{ width: 200 }}
+          />
+        )}
+        {items && (
+          <span className="text-sm opacity-70">
+            {t("cloud_diagram_count", { count: shown.length })}
+          </span>
+        )}
         <div className="flex-1" />
         <Button
           theme="solid"
@@ -328,6 +421,7 @@ function DiagramList() {
           columns={columns}
           dataSource={shown}
           loading={!items}
+          onChange={onSortChange}
           pagination={shown.length > 20 ? { pageSize: 20 } : false}
           empty={<div className="py-8 opacity-70">{emptyText}</div>}
           onRow={(d) => ({
