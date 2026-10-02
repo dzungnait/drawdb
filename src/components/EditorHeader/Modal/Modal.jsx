@@ -7,8 +7,6 @@ import {
   Toast,
 } from "@douyinfe/semi-ui";
 import { saveAs } from "file-saver";
-import { Parser } from "node-sql-parser";
-import { Parser as OracleParser } from "oracle-sql-parser";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DB, MODAL, STATUS } from "../../../data/constants";
@@ -118,16 +116,19 @@ export default function Modal({
     }
   };
 
-  const parseSQLAndLoadDiagram = () => {
+  const parseSQLAndLoadDiagram = async () => {
     const targetDatabase = database === DB.GENERIC ? importDb : database;
 
     let ast = null;
     try {
+      // The parsers are large, so they're loaded on first use
       if (targetDatabase === DB.ORACLESQL) {
+        const { Parser: OracleParser } = await import("oracle-sql-parser");
         const oracleParser = new OracleParser();
 
         ast = oracleParser.parse(importSource.src);
       } else {
+        const { Parser } = await import("node-sql-parser");
         const parser = new Parser();
 
         ast = parser.astify(importSource.src, {
@@ -255,7 +256,7 @@ export default function Modal({
         }
         return;
       case MODAL.IMPORT_SRC:
-        parseSQLAndLoadDiagram();
+        await parseSQLAndLoadDiagram();
         return;
       case MODAL.OPEN:
         if (!selectedDiagramId) return;
@@ -336,7 +337,11 @@ export default function Modal({
           return (
             <>
               {modal === MODAL.IMG ? (
-                <Image src={exportData.data} alt={t("coordinate_space_diagram")} height={280} />
+                <Image
+                  src={exportData.data}
+                  alt={t("coordinate_space_diagram")}
+                  height={280}
+                />
               ) : (
                 <CodeEditor
                   height={360}

@@ -5,30 +5,50 @@ import {
   Route,
   useLocation,
 } from "react-router-dom";
-import { useLayoutEffect } from "react";
-import Editor from "./pages/Editor";
+import { lazy, Suspense, useLayoutEffect } from "react";
+import { Spin } from "@douyinfe/semi-ui";
 import SettingsContextProvider from "./context/SettingsContext";
 import NotFound from "./pages/NotFound";
 import MigrationBanner, { isLegacyHost } from "./components/MigrationBanner";
 import CloudProvider from "./cloud/CloudProvider";
-import { ResetPasswordPage, VerifyEmailPage } from "./cloud/pages/AuthPages";
 import DiagramsPage from "./cloud/pages/DiagramsPage";
-import TeamsPage from "./cloud/pages/TeamsPage";
+
+// Loaded when visited, so the home page doesn't wait for the editor
+const Editor = lazy(() => import("./pages/Editor"));
+const TeamsPage = lazy(() => import("./cloud/pages/TeamsPage"));
+const ResetPasswordPage = lazy(() =>
+  import("./cloud/pages/AuthPages").then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
+);
+const VerifyEmailPage = lazy(() =>
+  import("./cloud/pages/AuthPages").then((m) => ({
+    default: m.VerifyEmailPage,
+  })),
+);
 
 export default function App() {
   const routes = (
-    <Routes>
-      <Route path="/" element={<DiagramsPage />} />
-      <Route path="/diagrams" element={<Navigate to="/" replace />} />
-      <Route path="/teams" element={<TeamsPage />} />
-      <Route path="/teams/:id" element={<TeamsPage />} />
-      <Route path="/editor" element={<Editor />} />
-      <Route path="/editor/diagrams/:id" element={<Editor />} />
-      <Route path="/editor/templates/:id" element={<Editor />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense
+      fallback={
+        <div className="h-full flex items-center justify-center">
+          <Spin size="large" />
+        </div>
+      }
+    >
+      <Routes>
+        <Route path="/" element={<DiagramsPage />} />
+        <Route path="/diagrams" element={<Navigate to="/" replace />} />
+        <Route path="/teams" element={<TeamsPage />} />
+        <Route path="/teams/:id" element={<TeamsPage />} />
+        <Route path="/editor" element={<Editor />} />
+        <Route path="/editor/diagrams/:id" element={<Editor />} />
+        <Route path="/editor/templates/:id" element={<Editor />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 
   return (

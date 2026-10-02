@@ -1,5 +1,4 @@
 import { toJpeg, toPng, toSvg } from "html-to-image";
-import jsPDF from "jspdf";
 
 const PADDING = 40;
 // Browser canvas limits: Chrome/Firefox cap a side at ~32k px and the area at
@@ -177,6 +176,8 @@ export async function saveDiagramAsPdf(filename, options) {
   const scale = Math.min(1, MAX_PDF_SIDE / width, MAX_PDF_SIDE / height);
   const w = width * scale;
   const h = height * scale;
+  // Loaded on first use
+  const { default: jsPDF } = await import("jspdf");
   const doc = new jsPDF(w > h ? "l" : "p", "px", [w, h]);
   doc.addImage(dataUrl, "jpeg", 0, 0, w, h);
   doc.save(`${filename}.pdf`);

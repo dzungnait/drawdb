@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Tabs, TabPane } from "@douyinfe/semi-ui";
+import { lazy, Suspense, useMemo, useState } from "react";
+import { Spin, Tabs, TabPane } from "@douyinfe/semi-ui";
 import { IconCode, IconList } from "@douyinfe/semi-icons";
 import { IconTable, IconRelationship } from "../../icons";
 import { Tab } from "../../data/constants";
@@ -26,7 +26,8 @@ import { databases } from "../../data/databases";
 import EnumsTab from "./EnumsTab/EnumsTab";
 import { isRtl } from "../../i18n/utils/rtl";
 import i18n from "../../i18n/i18n";
-import DBMLEditor from "./DBMLEditor";
+// Loaded when opened: the DBML parser is large
+const DBMLEditor = lazy(() => import("./DBMLEditor"));
 
 export default function SidePanel({ width, resize, setResize }) {
   const { layout, setLayout } = useLayout();
@@ -111,7 +112,15 @@ export default function SidePanel({ width, resize, setResize }) {
       >
         <div className="h-full flex-1 overflow-y-auto">
           {layout.dbmlEditor ? (
-            <DBMLEditor onProblemsChange={setDbmlProblems} />
+            <Suspense
+              fallback={
+                <div className="flex justify-center py-8">
+                  <Spin />
+                </div>
+              }
+            >
+              <DBMLEditor onProblemsChange={setDbmlProblems} />
+            </Suspense>
           ) : (
             <Tabs
               type="card"

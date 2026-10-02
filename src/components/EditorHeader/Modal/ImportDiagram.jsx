@@ -13,7 +13,6 @@ import {
   useViews,
 } from "../../../hooks";
 import { useTranslation } from "react-i18next";
-import { fromDBML } from "../../../utils/importFrom/dbml";
 
 export default function ImportDiagram({
   setImportData,
@@ -132,16 +131,22 @@ export default function ImportDiagram({
     }
   };
 
-  const loadDBMLData = (e) => {
+  const loadDBMLData = async (e) => {
     try {
+      // The DBML parser is large, so it's loaded on first use
+      const { fromDBML } = await import("../../../utils/importFrom/dbml");
       setImportData(fromDBML(e.target.result, database));
     } catch (error) {
-      const message = t("parse_error_at", {
-        name: error.diags[0].name,
-        line: error.diags[0].location.start.line,
-        column: error.diags[0].location.start.column,
-        message: error.diags[0].message,
-      });
+      // No diagnostics when the parser itself couldn't be loaded
+      const diag = error.diags?.[0];
+      const message = diag
+        ? t("parse_error_at", {
+            name: diag.name,
+            line: diag.location.start.line,
+            column: diag.location.start.column,
+            message: diag.message,
+          })
+        : error.message;
 
       setError({ type: STATUS.ERROR, message });
     }
@@ -181,7 +186,7 @@ export default function ImportDiagram({
           const reader = new FileReader();
           reader.onload = async (e) => {
             if (importFrom == IMPORT_FROM.JSON) loadJsonData(f, e);
-            if (importFrom == IMPORT_FROM.DBML) loadDBMLData(e);
+            if (importFrom == IMPORT_FROM.DBML) await loadDBMLData(e);
           };
           reader.readAsText(f);
 
