@@ -297,7 +297,10 @@ export default function ShareDialog({ diagramId, onChange, onLeft }) {
         }
       />
 
-      {isOwner && <LinkSharing diagramId={diagramId} />}
+      {/* Editors can turn on and copy the view link; the owner does the rest */}
+      {(isOwner || data.role === "editor") && (
+        <LinkSharing diagramId={diagramId} isOwner={isOwner} />
+      )}
 
       <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--semi-color-border)]">
         <div className="flex-1 text-xs opacity-70">

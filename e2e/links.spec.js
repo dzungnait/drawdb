@@ -87,3 +87,42 @@ test("view and edit links", async ({ person }) => {
   await bob.page.goto(editUrl);
   await expect(bob.page.getByText("This link doesn't work")).toBeVisible();
 });
+
+test("an editor can turn on the view link, but nothing more", async ({
+  person,
+}) => {
+  const owner = await person("Owner");
+  const bob = await person("Bob");
+  const id = await createDiagram(owner.page);
+  await owner.api("POST", `/diagrams/${id}/members`, {
+    email: bob.email,
+    role: "editor",
+  });
+
+  await bob.page.goto(`/editor/diagrams/${id}`);
+  await expect(canvasTables(bob.page)).toHaveCount(1);
+  await bob.page.getByRole("button", { name: "Share" }).first().click();
+  const dialog = modal(bob.page);
+  await expect(dialog.getByText("Share with a link")).toBeVisible();
+  // No edit link for editors
+  await expect(
+    dialog.getByRole("switch", { name: "Anyone with the link can edit" }),
+  ).toHaveCount(0);
+  const viewSwitch = dialog.getByRole("switch", {
+    name: "Anyone with the link can view",
+  });
+  await viewSwitch.click();
+  const url = dialog.locator("input[readonly]");
+  await expect(url).toHaveCount(1);
+  // Once on, only the owner can turn it off, change it or make a new one
+  await expect(viewSwitch).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "New link" })).toHaveCount(0);
+  await expect(
+    dialog.getByText("Only the owner can change when it expires"),
+  ).toBeVisible();
+
+  const visitor = await person("Visitor", { signedOut: true });
+  await visitor.page.goto(await url.inputValue());
+  await expect(canvasTables(visitor.page)).toHaveCount(1);
+  await expect(visitor.page.getByText("Read only")).toBeVisible();
+});

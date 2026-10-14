@@ -18,8 +18,11 @@ import { linksApi, shareLinkUrl } from "../sharing";
 const DAY = 24 * 60 * 60 * 1000;
 const EXPIRY_OPTIONS = [null, 1, 7, 30];
 
-/** The owner's view and edit links for a diagram. */
-export default function LinkSharing({ diagramId }) {
+/**
+ * A diagram's share links. The owner manages the view and edit links; an
+ * editor can only turn the view link on and copy it.
+ */
+export default function LinkSharing({ diagramId, isOwner }) {
   const { t } = useTranslation();
   const [links, setLinks] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -53,10 +56,11 @@ export default function LinkSharing({ diagramId }) {
   return (
     <div className="mt-4 pt-3 border-t border-[var(--semi-color-border)]">
       <div className="font-semibold mb-2">{t("cloud_link_sharing")}</div>
-      {["viewer", "editor"].map((role) => (
+      {(isOwner ? ["viewer", "editor"] : ["viewer"]).map((role) => (
         <LinkRow
           key={role}
           role={role}
+          isOwner={isOwner}
           diagramId={diagramId}
           link={links.find((l) => l.role === role)}
           busy={busy === role}
@@ -67,7 +71,7 @@ export default function LinkSharing({ diagramId }) {
   );
 }
 
-function LinkRow({ role, diagramId, link, busy, run }) {
+function LinkRow({ role, isOwner, diagramId, link, busy, run }) {
   const { t, i18n } = useTranslation();
   const url = link && shareLinkUrl(diagramId, link.token);
 
@@ -126,6 +130,8 @@ function LinkRow({ role, diagramId, link, busy, run }) {
         <Switch
           checked={Boolean(link)}
           loading={busy}
+          // Only the owner can turn a link off
+          disabled={!isOwner && Boolean(link)}
           onChange={toggle}
           aria-label={t(`cloud_link_${role}`)}
         />
@@ -138,32 +144,39 @@ function LinkRow({ role, diagramId, link, busy, run }) {
               {t("cloud_copy_link")}
             </Button>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Select
-              size="small"
-              value={link.expiresAt ? undefined : null}
-              placeholder={expiry}
-              onChange={setExpiry}
-              optionList={EXPIRY_OPTIONS.map((days) => ({
-                value: days,
-                label: days
-                  ? t("cloud_link_expires_in", { count: days })
-                  : t("cloud_link_never_expires"),
-              }))}
-              style={{ width: 230 }}
-              className={link.expired ? "!text-red-500" : ""}
-            />
-            <Tooltip content={t("cloud_link_regenerate_confirm")}>
-              <Button
+          {isOwner ? (
+            <div className="flex items-center gap-2 text-xs">
+              <Select
                 size="small"
-                theme="borderless"
-                icon={<i className="bi bi-arrow-repeat" />}
-                onClick={regenerate}
-              >
-                {t("cloud_link_regenerate")}
-              </Button>
-            </Tooltip>
-          </div>
+                value={link.expiresAt ? undefined : null}
+                placeholder={expiry}
+                onChange={setExpiry}
+                optionList={EXPIRY_OPTIONS.map((days) => ({
+                  value: days,
+                  label: days
+                    ? t("cloud_link_expires_in", { count: days })
+                    : t("cloud_link_never_expires"),
+                }))}
+                style={{ width: 230 }}
+                className={link.expired ? "!text-red-500" : ""}
+              />
+              <Tooltip content={t("cloud_link_regenerate_confirm")}>
+                <Button
+                  size="small"
+                  theme="borderless"
+                  icon={<i className="bi bi-arrow-repeat" />}
+                  onClick={regenerate}
+                >
+                  {t("cloud_link_regenerate")}
+                </Button>
+              </Tooltip>
+            </div>
+          ) : (
+            <div className="text-xs opacity-70">
+              {expiry ? `${expiry}. ` : ""}
+              {t("cloud_link_owner_manages")}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -224,6 +224,8 @@ const strings = {
     cloud_link_editor_hint:
       "Once signed in. Without an account they can only view.",
     cloud_link_never_expires: "Never expires",
+    cloud_link_owner_manages:
+      "Only the owner can change when it expires or turn it off.",
     cloud_link_expires_in_one: "Expires in {{count}} day",
     cloud_link_expires_in_other: "Expires in {{count}} days",
     cloud_link_expires_at: "Expires {{date}}",
@@ -532,6 +534,8 @@ const strings = {
     cloud_link_editor_hint:
       "Sau khi đăng nhập. Chưa có tài khoản thì chỉ xem được.",
     cloud_link_never_expires: "Không hết hạn",
+    cloud_link_owner_manages:
+      "Chỉ chủ sở hữu mới đổi được hạn dùng hoặc tắt link.",
     cloud_link_expires_in_other: "Hết hạn sau {{count}} ngày",
     cloud_link_expires_at: "Hết hạn lúc {{date}}",
     cloud_link_expired_at: "Đã hết hạn lúc {{date}}",
